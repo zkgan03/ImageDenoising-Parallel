@@ -2,7 +2,7 @@
 
 ## Parallel Platform
   - OpenMP
-  - CUDA
+  - CUDA 12.6
 
 ## Image Denoising Algorithms
   - VisuShrink
