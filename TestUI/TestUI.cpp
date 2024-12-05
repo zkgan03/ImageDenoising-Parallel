@@ -1,73 +1,401 @@
-// TestUI.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
-
-#include <iostream>
+#include <windows.h>
+#include <commdlg.h>
 #include <opencv2/opencv.hpp>
+#include <omp.h>
 
 #include "OpenMP.h"
 #include "CUDA.h"
 #include "Sequential.h"
 
-void add_gaussian_noise(cv::Mat& image, double mean = 0.0, double stddev = 10.0) {
+#define IDC_BUTTON_OPEN 101 // id for the open button
+#define IDC_COMBO_METHOD 102 // id for the method combo box
+#define IDC_BUTTON_DENOISE 103 // id for the denoise button
+#define IDC_COMBO_SHRINKAGE 104 // id for the shrinkage combo box
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+void add_gaussian_noise(cv::Mat& image, double mean = 0.0, double stddev = 10.0);
+void openFileDialog(HWND hwnd, std::wstring& filePath);
+void displayImage(HWND hwnd, cv::Mat& image, int x, int y, int width, int height);
+
+cv::Mat originalImage, noisyImage, denoisedImage;
+std::wstring imagePath;
+int selectedMethod = 0;
+int selectedShrinkage = 0;
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+	const wchar_t CLASS_NAME[] = L"Sample Window Class";
+
+	WNDCLASS wc = {};
+	wc.lpfnWndProc = WindowProc;
+	wc.hInstance = hInstance;
+	wc.lpszClassName = CLASS_NAME;
+
+	RegisterClass(&wc);
+
+	HWND hwnd = CreateWindowEx(
+		0,
+		CLASS_NAME,
+		L"Image Denoising",
+		WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT, CW_USEDEFAULT, 1600, 800,
+		NULL,
+		NULL,
+		hInstance,
+		NULL
+	);
+
+	if (hwnd == NULL) {
+		return 0;
+	}
+
+	ShowWindow(hwnd, nCmdShow);
+
+	MSG msg = {};
+	while (GetMessage(&msg, NULL, 0, 0)) {
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+
+	return 0;
+}
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+
+	switch (uMsg) {
+	case WM_CREATE: {
+		// Create controls
+
+		// Create buttons
+		CreateWindow(L"BUTTON", L"Open Image", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			10, 10, 100, 30, hwnd, (HMENU)IDC_BUTTON_OPEN, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create input field for number of levels
+		CreateWindow(L"STATIC", L"Levels:", WS_VISIBLE | WS_CHILD,
+			10, 50, 100, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
+			120, 50, 50, 20, hwnd, (HMENU)200, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create input field for window size
+		CreateWindow(L"STATIC", L"Window Size:", WS_VISIBLE | WS_CHILD,
+			10, 80, 100, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
+			120, 80, 50, 20, hwnd, (HMENU)201, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+
+		// Create combo box for methods
+		CreateWindow(L"COMBOBOX", NULL, CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
+			120, 10, 150, 100, hwnd, (HMENU)IDC_COMBO_METHOD, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create combo box for shrinkage methods
+		CreateWindow(L"COMBOBOX", NULL, CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
+			280, 10, 150, 100, hwnd, (HMENU)IDC_COMBO_SHRINKAGE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create button
+		CreateWindow(L"BUTTON", L"Denoise", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			440, 10, 100, 30, hwnd, (HMENU)IDC_BUTTON_DENOISE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Add items to the combo box for methods
+		HWND hComboMethod = GetDlgItem(hwnd, IDC_COMBO_METHOD);
+		SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)L"OpenMP");
+		SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)L"CUDA");
+		SendMessage(hComboMethod, CB_ADDSTRING, 0, (LPARAM)L"Sequential");
+		SendMessage(hComboMethod, CB_SETCURSEL, 0, 0);
+
+		// Add items to the combo box for shrinkage methods
+		HWND hComboShrinkage = GetDlgItem(hwnd, IDC_COMBO_SHRINKAGE);
+		SendMessage(hComboShrinkage, CB_ADDSTRING, 0, (LPARAM)L"BayesShrink");
+		SendMessage(hComboShrinkage, CB_ADDSTRING, 0, (LPARAM)L"VisuShrink");
+		SendMessage(hComboShrinkage, CB_ADDSTRING, 0, (LPARAM)L"NeighShrink");
+		SendMessage(hComboShrinkage, CB_ADDSTRING, 0, (LPARAM)L"ModiNeighShrink");
+		SendMessage(hComboShrinkage, CB_SETCURSEL, 0, 0);
+
+		break;
+	}
+	case WM_COMMAND: {
+		// Handle button click events
+
+		// Open Image button
+		if (LOWORD(wParam) == IDC_BUTTON_OPEN) {
+			openFileDialog(hwnd, imagePath);
+
+			if (!imagePath.empty()) {
+				denoisedImage = NULL;
+
+				originalImage = cv::imread(
+					cv::String(imagePath.begin(), imagePath.end()),
+					cv::IMREAD_COLOR
+				);
+
+				if (!originalImage.empty()) {
+					noisyImage = originalImage.clone();
+					add_gaussian_noise(noisyImage, 32, 50);
+					InvalidateRect(hwnd, NULL, TRUE);
+				}
+			}
+		}
+
+		// Denoise button
+		else if (LOWORD(wParam) == IDC_BUTTON_DENOISE) {
+			HWND hComboMethod = GetDlgItem(hwnd, IDC_COMBO_METHOD);
+			selectedMethod = static_cast<int>(SendMessage(hComboMethod, CB_GETCURSEL, 0, 0));
+
+			HWND hComboShrinkage = GetDlgItem(hwnd, IDC_COMBO_SHRINKAGE);
+			selectedShrinkage = static_cast<int>(SendMessage(hComboShrinkage, CB_GETCURSEL, 0, 0));
+
+			HWND hEditLevels = GetDlgItem(hwnd, 200);
+
+			wchar_t buffer[10];
+			GetWindowText(hEditLevels, buffer, 10);
+			int levels = _wtoi(buffer); // Convert input to integer
+			if (levels > 5) {
+				// DWT Levels should be less than or equal to 5
+				// show popup and return
+				MessageBox(hwnd, L"Levels should be less than or equal to 5", L"Error", MB_OK);
+				return 0;
+			}
+
+			HWND hEditWindowSize = GetDlgItem(hwnd, 201);
+			GetWindowText(hEditWindowSize, buffer, 10);
+			int windowSize = _wtoi(buffer); // Convert input to intege
+
+			if ((windowSize % 2 == 0 || windowSize < 3) && (selectedShrinkage == 2 || selectedShrinkage == 3)) {
+				// window size should be odd and greater than or equal to 3
+				// only show when chosen shrinkage is NeighShrink or ModiNeighShrink
+				MessageBox(hwnd, L"Window size should be an odd number greater than or equal to 3", L"Error", MB_OK);
+				return 0;
+			}
+
+			std::vector<cv::Mat> noisyImageChannels;
+			cv::split(noisyImage, noisyImageChannels);
+			std::vector<cv::Mat> denoisedImageChannels = std::vector<cv::Mat>(noisyImageChannels.size());
+
+			if (!noisyImage.empty()) {
+				switch (selectedMethod) {
+				case 0: {
+					OpenMP openMP;
+					OpenMPWaveletThreshold waveletThreshold = openMP.waveletThreshold;
+					switch (selectedShrinkage) {
+					case 0:
+						for (int i = 0; i < noisyImageChannels.size(); i++) {
+							waveletThreshold.bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+						}
+						break;
+					case 1:
+						for (int i = 0; i < noisyImageChannels.size(); i++) {
+							waveletThreshold.visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+						}
+						break;
+					case 2:
+						for (int i = 0; i < noisyImageChannels.size(); i++) {
+							waveletThreshold.neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+						}
+						break;
+					case 3:
+						for (int i = 0; i < noisyImage.channels(); i++) {
+							waveletThreshold.modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+						}
+						break;
+					}
+					break;
+				}
+				case 1: {
+					CUDA cuda;
+					CUDAWaveletThreshold cudaWaveletThreshold = cuda.waveletThreshold;
+					switch (selectedShrinkage) {
+					case 0:
+						for (int i = 0; i < noisyImageChannels.size(); i++)
+							cudaWaveletThreshold.bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+						break;
+					case 1:
+						for (int i = 0; i < noisyImageChannels.size(); i++)
+							cudaWaveletThreshold.visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+						break;
+					case 2:
+						for (int i = 0; i < noisyImageChannels.size(); i++)
+							cudaWaveletThreshold.neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+						break;
+					case 3:
+						for (int i = 0; i < noisyImageChannels.size(); i++)
+							cudaWaveletThreshold.modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+						break;
+					}
+					break;
+				}
+				case 2: {
+					Sequential sequential;
+					SequentialWaveletThreshold sequentialWaveletThreshold = sequential.waveletThreshold;
+					switch (selectedShrinkage) {
+					case 0:
+						for (int i = 0; i < noisyImageChannels.size(); i++)
+							sequentialWaveletThreshold.bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+						break;
+					case 1:
+						for (int i = 0; i < noisyImageChannels.size(); i++)
+							sequentialWaveletThreshold.visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+						break;
+					case 2:
+						for (int i = 0; i < noisyImageChannels.size(); i++)
+							sequentialWaveletThreshold.neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+						break;
+					case 3:
+						for (int i = 0; i < noisyImageChannels.size(); i++)
+							sequentialWaveletThreshold.modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+						break;
+					}
+					break;
+				}
+				}
+
+				cv::merge(denoisedImageChannels, denoisedImage);
+				cv::normalize(denoisedImage, denoisedImage, 0, 255, cv::NORM_MINMAX, CV_8U);
+
+				InvalidateRect(hwnd, NULL, TRUE);
+			}
+		}
+		break;
+	}
+	case WM_PAINT: {
+		// Display images
+
+		PAINTSTRUCT ps;
+		HDC hdc = BeginPaint(hwnd, &ps);
+
+		// Display images
+		if (!originalImage.empty()) {
+			displayImage(hwnd, originalImage, 10, 120, 500, 500);
+		}
+		if (!noisyImage.empty()) {
+			displayImage(hwnd, noisyImage, 520, 120, 500, 500);
+		}
+		if (!denoisedImage.empty()) {
+			displayImage(hwnd, denoisedImage, 1030, 120, 500, 500);
+		}
+
+		EndPaint(hwnd, &ps);
+
+		break;
+	}
+	case WM_DESTROY: {
+		// Clean up resources
+		PostQuitMessage(0);
+		break;
+	}
+	default:
+		// Handle any messages the switch statement didn't handle
+		return DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+	return 0;
+}
+
+void add_gaussian_noise(cv::Mat& image, double mean, double stddev) {
 	cv::Mat noise(image.size(), image.type());
 	cv::randn(noise, mean, stddev);
 	image += noise;
 }
 
+void openFileDialog(HWND hwnd, std::wstring& filePath) {
+	WCHAR filename[MAX_PATH] = L"";
+	OPENFILENAME ofn;
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = hwnd;
+	ofn.lpstrFilter = L"All Files\0*.*\0";
+	ofn.lpstrFile = filename;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+	ofn.lpstrDefExt = L"";
 
-int main()
-{
-	// get image path input
-	std::string imagePath;
-	std::cout << "Enter image path: ";
-	std::cin >> imagePath;
+	if (GetOpenFileName(&ofn)) {
+		filePath = filename;
+	}
+}
 
-	// read image
-	cv::Mat image = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
-	if (image.empty())
-	{
-		std::cout << "Could not read the image: " << imagePath << std::endl;
-		return 1;
+void displayImage(HWND hwnd, cv::Mat& image, int x, int y, int displayWidth, int displayHeight) {
+	if (image.empty()) return;
+
+	// Get the device context for the window
+	HDC hdc = GetDC(hwnd);
+	HDC hdcMem = CreateCompatibleDC(hdc);
+	HBITMAP hBitmap = CreateCompatibleBitmap(hdc, displayWidth, displayHeight);
+	SelectObject(hdcMem, hBitmap);
+
+	// Clear the background to black
+	RECT rect = { 0, 0, displayWidth, displayHeight };
+	HBRUSH blackBrush = CreateSolidBrush(RGB(0, 0, 0));
+	FillRect(hdcMem, &rect, blackBrush);
+	DeleteObject(blackBrush);
+
+	// Calculate the aspect ratio and the new dimensions
+	double imageAspect = static_cast<double>(image.cols) / image.rows;
+	double displayAspect = static_cast<double>(displayWidth) / displayHeight;
+
+	int newWidth, newHeight;
+	if (imageAspect > displayAspect) {
+		// Image is wider than the display area
+		newWidth = displayWidth;
+		newHeight = static_cast<int>(displayWidth / imageAspect);
+	}
+	else {
+		// Image is taller than the display area
+		newHeight = displayHeight;
+		newWidth = static_cast<int>(displayHeight * imageAspect);
 	}
 
-	// add noise to image
-	//add_gaussian_noise(image, 10,1);
-	//add_gaussian_noise(image, 12, 5);
-	add_gaussian_noise(image, 32, 50);
+	// Calculate offsets for centering
+	int offsetX = (displayWidth - newWidth) / 2;
+	int offsetY = (displayHeight - newHeight) / 2;
 
-	// OpenMP
-	OpenMP openMP;
-	OpenMPWaveletThreshold waveletThreshold = openMP.waveletThreshold;
-	cv::Mat outputOpenMP;
+	// Resize the image while maintaining the aspect ratio
+	cv::Mat resizedImage;
+	cv::resize(image, resizedImage, cv::Size(newWidth, newHeight), 0, 0, cv::INTER_AREA);
 
-	waveletThreshold.bayesShrink(image, outputOpenMP, 3);
-	cv::normalize(outputOpenMP, outputOpenMP, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-	cv::imshow("Wavelet Threshold OpenMP", outputOpenMP);
+	// Convert the resized image to BGR format for rendering
+	if (resizedImage.channels() == 1) {
+		cv::cvtColor(resizedImage, resizedImage, cv::COLOR_GRAY2BGR);
+	}
 
+	// Ensure DWORD alignment for bitmap rows
+	int rowWidth = resizedImage.cols * 3; // Each pixel is 3 bytes (BGR)
+	int paddedRowWidth = (rowWidth + 3) & ~3; // Align to the next multiple of 4
+	std::vector<uint8_t> alignedData(paddedRowWidth * resizedImage.rows, 0);
 
+	for (int i = 0; i < resizedImage.rows; ++i) {
+		std::memcpy(
+			alignedData.data() + i * paddedRowWidth, // Destination
+			resizedImage.data + i * rowWidth,        // Source
+			rowWidth                                // Copy only the actual row data
+		);
+	}
 
-	// CUDA
-	CUDA cuda;
-	CUDAWaveletThreshold cudaWaveletThreshold = cuda.waveletThreshold;
-	cv::Mat outputCUDA;
+	// Create a BITMAPINFO structure
+	BITMAPINFO bmi = {};
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = resizedImage.cols;
+	bmi.bmiHeader.biHeight = -resizedImage.rows; // Negative for a top-down DIB
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 24;
+	bmi.bmiHeader.biCompression = BI_RGB;
 
-	cudaWaveletThreshold.bayesShrink(image, outputCUDA, 3);
-	cv::normalize(outputCUDA, outputCUDA, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-	cv::imshow("Wavelet Threshold CUDA", outputCUDA);
+	// Draw the resized image centered in the display area
+	StretchDIBits(
+		hdcMem,
+		offsetX, offsetY, newWidth, newHeight, // Destination rectangle
+		0, 0, resizedImage.cols, resizedImage.rows, // Source rectangle
+		alignedData.data(),
+		&bmi,
+		DIB_RGB_COLORS,
+		SRCCOPY
+	);
 
+	// Copy the memory DC to the window DC
+	BitBlt(hdc, x, y, displayWidth, displayHeight, hdcMem, 0, 0, SRCCOPY);
 
-	// Sequential
-	Sequential sequential;
-	SequentialWaveletThreshold sequentialWaveletThreshold = sequential.waveletThreshold;
-	cv::Mat outputSeq;
+	// Clean up resources
+	DeleteObject(hBitmap);
+	DeleteDC(hdcMem);
+	ReleaseDC(hwnd, hdc);
+}
 
-	sequentialWaveletThreshold.bayesShrink(image, outputSeq, 3);
-	cv::normalize(outputSeq, outputSeq, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-	cv::imshow("Wavelet Threshold Sequential", outputSeq);
-
-	cv::waitKey(0);
-	
-
-
-	return 0;
+int main() {
+	return WinMain(GetModuleHandle(NULL), NULL, GetCommandLineA(), SW_SHOWNORMAL);
 }
