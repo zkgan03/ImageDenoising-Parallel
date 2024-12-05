@@ -1,8 +1,8 @@
 #include <iostream>
-#include <opencv2/core.hpp>
+#include <opencv2/opencv.hpp>
 
-#include "WaveletThreshold.h"
-#include "HaarWavelet.h"
+#include "OpenMPWaveletThreshold.h"
+#include "OpenMPHaarWavelet.h"
 
 //
 // Wavelet-Based Thresholding (VisuShrink, NeighShrink, ModiNeighShrink)
@@ -11,23 +11,41 @@
 /**
 * VisuShrink thresholding function.
 */
-void WaveletThreshold::visuShrink(
+void OpenMPWaveletThreshold::visuShrink(
 	const cv::Mat& input,
 	cv::Mat& output,
 	int level,
-	ThresholdMode mode = ThresholdMode::SOFT
+	OpenMPThresholdMode mode
 ) {
+
 	if (input.empty() || level < 1) {
 		throw std::invalid_argument("Invalid input parameters for VisuShrink.");
 	}
 
-	output = input.clone();
 
-	int rows = input.rows;
-	int cols = input.cols;
+	/*
+		1. apply wavelet transform to the input image
+	*/
+	std::cout << "Performing DWT" << std::endl;
+	cv::Mat dwtOutput;
+	OpenMPHaarWavelet::dwt(input, dwtOutput, level); // dwt
 
+	//display the dwt output
+	//cv::Mat dwtOutputDisplay = dwtOutput.clone();
+	//cv::normalize(dwtOutputDisplay, dwtOutputDisplay, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+	//cv::imshow("DWT Output", dwtOutputDisplay);
+	//cv::waitKey(0);
+
+	// Initialize variables
+	int rows = dwtOutput.rows;
+	int cols = dwtOutput.cols;
+
+	/*
+		2. Calc Universal Threshold
+	*/
+	std::cout << "Calculating Universal Threshold" << std::endl;
 	// Based on many paper, the thresholding is applied to the high-frequency sub-bands on first level
-	cv::Mat highFreqBand = input(
+	cv::Mat highFreqBand = dwtOutput(
 		cv::Rect(
 			cols >> 1,
 			rows >> 1,
@@ -37,19 +55,31 @@ void WaveletThreshold::visuShrink(
 	);
 	double threshold = calculateUniversalThreshold(highFreqBand);
 
-	// select the thresholding function
+	/*
+		3. select the thresholding function
+	*/
+	std::cout << "Selecting Threshold " << std::endl;
 	float (*thresholdFunction)(float x, float threshold) = soft_shrink;
 	switch (mode) {
-	case ThresholdMode::HARD:
+	case OpenMPThresholdMode::HARD:
 		thresholdFunction = hard_shrink;
 		break;
-	case ThresholdMode::SOFT:
+	case OpenMPThresholdMode::SOFT:
 		thresholdFunction = soft_shrink;
 		break;
-	case ThresholdMode::GARROTE:
+	case OpenMPThresholdMode::GARROTE:
 		thresholdFunction = garrot_shrink;
 		break;
 	}
+
+	/*
+		4. Apply VisuShrink thresholding
+	*/
+
+	std::cout << "Applying VisuShrink" << std::endl;
+
+	// Initialize the output image as dwtOutput
+	output = dwtOutput.clone();
 
 	for (int i = 1; i <= level; i++) {
 
@@ -60,26 +90,41 @@ void WaveletThreshold::visuShrink(
 			for (int c = 0; c < cols >> i; c++) {
 				// LH band
 				double& lh = output.at<double>(r + (rows >> i), c);
-				lh = thresholdFunction(input.at<double>(r + (rows >> i), c), threshold);
+				lh = thresholdFunction(dwtOutput.at<double>(r + (rows >> i), c), threshold);
 
 				// HL band
 				double& hl = output.at<double>(r, c + (cols >> i));
-				hl = thresholdFunction(input.at<double>(r, c + (cols >> i)), threshold);
+				hl = thresholdFunction(dwtOutput.at<double>(r, c + (cols >> i)), threshold);
 
 				// HH band
 				double& hh = output.at<double>(r + (rows >> i), c + (cols >> i));
-				hh = thresholdFunction(input.at<double>(r + (rows >> i), c + (cols >> i)), threshold);
+				hh = thresholdFunction(dwtOutput.at<double>(r + (rows >> i), c + (cols >> i)), threshold);
 			}
 		}
 	}
+	std::cout << "VisuShrink Done" << std::endl;
+	//cv::Mat outputDisplay = output.clone();
+	//cv::normalize(outputDisplay, outputDisplay, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+	//cv::imshow("VisuShrink Output", outputDisplay);
+	//cv::waitKey(0);
 
+	/*
+		5. apply inverse wavelet transform to the output image
+	*/
+	std::cout << "Performing IDWT" << std::endl;
+	OpenMPHaarWavelet::idwt(output, output, level); // idwt
+
+	//cv::Mat idwtOutputDisplay = output.clone();
+	//cv::normalize(idwtOutputDisplay, idwtOutputDisplay, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+	//cv::imshow("IDWT Output", idwtOutputDisplay);
+	//cv::waitKey(0);
 }
 
 
 /**
 * NeighShrink thresholding function.
 */
-void WaveletThreshold::neighShrink(
+void OpenMPWaveletThreshold::neighShrink(
 	const cv::Mat& input,
 	cv::Mat& output,
 	int level,
@@ -90,15 +135,22 @@ void WaveletThreshold::neighShrink(
 		throw std::invalid_argument("Invalid input parameters for NeighShrink.");
 	}
 
+	/*
+		1. Apply wavelet transform to the input image
+	*/
+	cv::Mat dwtOutput;
+	OpenMPHaarWavelet::dwt(input, dwtOutput, level); // dwt
+
 	// Initialize variables
-	int rows = input.rows;
-	int cols = input.cols;
+	int rows = dwtOutput.rows;
+	int cols = dwtOutput.cols;
 	int halfWindow = windowSize / 2;
 
-	output = input.clone();
-
+	/*
+		2. Calc Universal Threshold
+	*/
 	// Based on many paper, the thresholding is applied to the high-frequency sub-bands on first level
-	cv::Mat highFreqBand = input(
+	cv::Mat highFreqBand = dwtOutput(
 		cv::Rect(
 			cols >> 1,
 			rows >> 1,
@@ -112,13 +164,19 @@ void WaveletThreshold::neighShrink(
 
 	std::cout << "Threshold: " << threshold << std::endl;
 
+	/*
+		3. Apply NeighShrink thresholding
+	*/
 	// Apply NeighShrink thresholding
 	// Loop through each level of the wavelet decomposition
+	output = dwtOutput.clone();
+
 	for (int i = 1; i <= level; ++i) {
 
 		std::cout << "Performing NeighShrink level: " << i << std::endl;
 
-		cv::Mat lh = output(
+		//LH
+		cv::Mat lhCoeffs = dwtOutput(
 			cv::Rect(
 				0,
 				rows >> i,
@@ -127,7 +185,17 @@ void WaveletThreshold::neighShrink(
 			)
 		);
 
-		cv::Mat hl = output(
+		cv::Mat lhOutput = output(
+			cv::Rect(
+				0,
+				rows >> i,
+				cols >> i,
+				rows >> i
+			)
+		);
+
+		//HL
+		cv::Mat hlCoeffs = dwtOutput(
 			cv::Rect(
 				cols >> i,
 				0,
@@ -136,7 +204,17 @@ void WaveletThreshold::neighShrink(
 			)
 		);
 
-		cv::Mat hh = output(
+		cv::Mat hlOutput = output(
+			cv::Rect(
+				cols >> i,
+				0,
+				cols >> i,
+				rows >> i
+			)
+		);
+
+		//HH
+		cv::Mat hhCoeffs = dwtOutput(
 			cv::Rect(
 				cols >> i,
 				rows >> i,
@@ -145,14 +223,29 @@ void WaveletThreshold::neighShrink(
 			)
 		);
 
-		applyNeighShrink(lh, threshold, halfWindow);
-		applyNeighShrink(hl, threshold, halfWindow);
-		applyNeighShrink(hh, threshold, halfWindow);
+		cv::Mat hhOutput = output(
+			cv::Rect(
+				cols >> i,
+				rows >> i,
+				cols >> i,
+				rows >> i
+			)
+		);
+
+		applyNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
+		applyNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
+		applyNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
 	}
+
+	/*
+		4. Apply inverse wavelet transform to the output image
+	*/
+	OpenMPHaarWavelet::idwt(output, output, level); // idwt
 }
 
-void WaveletThreshold::applyNeighShrink(
-	cv::Mat& coeffs,
+void OpenMPWaveletThreshold::applyNeighShrink(
+	const cv::Mat& coeffs,
+	cv::Mat& output,
 	double threshold,
 	int halfWindow
 ) {
@@ -178,7 +271,7 @@ void WaveletThreshold::applyNeighShrink(
 				}
 			}
 
-			double& value = coeffs.at<double>(r, c);
+			double& value = output.at<double>(r, c);
 			value *= std::max(1.0 - ((threshold * threshold) / squareSum), 0.0);
 		}
 	}
@@ -188,7 +281,7 @@ void WaveletThreshold::applyNeighShrink(
 /**
 * ModiNeighShrink thresholding function.
 */
-void WaveletThreshold::modineighShrink(
+void OpenMPWaveletThreshold::modineighShrink(
 	const cv::Mat& input,
 	cv::Mat& output,
 	int level,
@@ -196,18 +289,25 @@ void WaveletThreshold::modineighShrink(
 ) {
 	// Verify the input validity
 	if (input.empty() || level < 1 || windowSize < 1) {
-		throw std::invalid_argument("Invalid input parameters for ModiNeighShrink.");
+		throw std::invalid_argument("Invalid input parameters for NeighShrink.");
 	}
 
+	/*
+		1. Apply wavelet transform to the input image
+	*/
+	cv::Mat dwtOutput;
+	OpenMPHaarWavelet::dwt(input, dwtOutput, level); // dwt
+
 	// Initialize variables
-	int rows = input.rows;
-	int cols = input.cols;
+	int rows = dwtOutput.rows;
+	int cols = dwtOutput.cols;
 	int halfWindow = windowSize / 2;
 
-	output = input.clone();
-
+	/*
+		2. Calc Universal Threshold
+	*/
 	// Based on many paper, the thresholding is applied to the high-frequency sub-bands on first level
-	cv::Mat highFreqBand = input(
+	cv::Mat highFreqBand = dwtOutput(
 		cv::Rect(
 			cols >> 1,
 			rows >> 1,
@@ -221,13 +321,18 @@ void WaveletThreshold::modineighShrink(
 
 	std::cout << "Threshold: " << threshold << std::endl;
 
-	// Apply ModiNeighShrink thresholding
+	/*
+		3. Apply NeighShrink thresholding
+	*/
+	// Apply NeighShrink thresholding
 	// Loop through each level of the wavelet decomposition
+	output = dwtOutput.clone();
 	for (int i = 1; i <= level; ++i) {
 
-		std::cout << "Performing ModiNeighShrink level: " << i << std::endl;
+		std::cout << "Performing NeighShrink level: " << i << std::endl;
 
-		cv::Mat lh = output(
+		//LH
+		cv::Mat lhCoeffs = dwtOutput(
 			cv::Rect(
 				0,
 				rows >> i,
@@ -236,7 +341,17 @@ void WaveletThreshold::modineighShrink(
 			)
 		);
 
-		cv::Mat hl = output(
+		cv::Mat lhOutput = output(
+			cv::Rect(
+				0,
+				rows >> i,
+				cols >> i,
+				rows >> i
+			)
+		);
+
+		//HL
+		cv::Mat hlCoeffs = dwtOutput(
 			cv::Rect(
 				cols >> i,
 				0,
@@ -245,7 +360,17 @@ void WaveletThreshold::modineighShrink(
 			)
 		);
 
-		cv::Mat hh = output(
+		cv::Mat hlOutput = output(
+			cv::Rect(
+				cols >> i,
+				0,
+				cols >> i,
+				rows >> i
+			)
+		);
+
+		//HH
+		cv::Mat hhCoeffs = dwtOutput(
 			cv::Rect(
 				cols >> i,
 				rows >> i,
@@ -254,20 +379,34 @@ void WaveletThreshold::modineighShrink(
 			)
 		);
 
-		applyModiNeighShrink(lh, threshold, halfWindow);
-		applyModiNeighShrink(hl, threshold, halfWindow);
-		applyModiNeighShrink(hh, threshold, halfWindow);
+		cv::Mat hhOutput = output(
+			cv::Rect(
+				cols >> i,
+				rows >> i,
+				cols >> i,
+				rows >> i
+			)
+		);
+
+		applyModiNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
+		applyModiNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
+		applyModiNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
 	}
+
+	/*
+		4. Apply inverse wavelet transform to the output image
+	*/
+	OpenMPHaarWavelet::idwt(output, output, level); // idwt
 }
 
 
-void WaveletThreshold::applyModiNeighShrink(
-	cv::Mat& coeffs,
+void OpenMPWaveletThreshold::applyModiNeighShrink(
+	const cv::Mat& coeffs,
+	cv::Mat& output,
 	double threshold,
 	int halfWindow
 ) {
 
-#pragma omp parallel for collapse(2)
 	for (int r = 0; r < coeffs.rows; ++r) {
 		for (int c = 0; c < coeffs.cols; ++c) {
 
@@ -289,7 +428,7 @@ void WaveletThreshold::applyModiNeighShrink(
 				}
 			}
 
-			double& value = coeffs.at<double>(r, c);
+			double& value = output.at<double>(r, c);
 			value *= std::max(1.0 - ((3.0 / 4.0) * (threshold * threshold) / squareSum), 0.0);
 		}
 	}
@@ -300,23 +439,31 @@ void WaveletThreshold::applyModiNeighShrink(
 /**
 * BayesShrink thresholding function.
 */
-void WaveletThreshold::bayesShrink(
+void OpenMPWaveletThreshold::bayesShrink(
 	const cv::Mat& input,
 	cv::Mat& output,
 	int level,
-	ThresholdMode mode
+	OpenMPThresholdMode mode
 ) {
 	if (input.empty() || level < 1) {
 		throw std::invalid_argument("Invalid input parameters for BayesShrink.");
 	}
 
-	output = input.clone();
+	/*
+		1. Apply wavelet transform to the input image
+	*/
+	OpenMPHaarWavelet::dwt(input, output, level); // dwt
 
+	// Initialize variables
 	int rows = input.rows;
 	int cols = input.cols;
 
+
+	/*
+		2. Estimate noise standard deviation
+	*/
 	// Based on the paper the noise is estimated from the HH1 band
-	cv::Mat highFreqBand = input(
+	cv::Mat highFreqBand = output(
 		cv::Rect(
 			cols >> 1,
 			rows >> 1,
@@ -329,6 +476,9 @@ void WaveletThreshold::bayesShrink(
 	double sigmaNoise = calculateSigma(highFreqBand);
 
 
+	/*
+		3. Apply BayesShrink thresholding
+	*/
 	for (int i = 1; i <= level; ++i) {
 
 		std::cout << "Performing BayesShrink level: " << i << std::endl;
@@ -364,23 +514,29 @@ void WaveletThreshold::bayesShrink(
 		applyBayesShrink(hl, sigmaNoise, mode);
 		applyBayesShrink(hh, sigmaNoise, mode);
 	}
+
+	/*
+		4. Apply inverse wavelet transform to the output image
+	*/
+	OpenMPHaarWavelet::idwt(output, output, level); // idwt
 }
 
-void WaveletThreshold::applyBayesShrink(
+void OpenMPWaveletThreshold::applyBayesShrink(
 	cv::Mat& coeffs,
 	double sigmaNoise,
-	ThresholdMode mode
+	OpenMPThresholdMode mode
 ) {
+
 	// Select the thresholding function
 	float (*thresholdFunction)(float x, float threshold) = soft_shrink;;
 	switch (mode) {
-	case ThresholdMode::HARD:
+	case OpenMPThresholdMode::HARD:
 		thresholdFunction = hard_shrink;
 		break;
-	case ThresholdMode::SOFT:
+	case OpenMPThresholdMode::SOFT:
 		thresholdFunction = soft_shrink;
 		break;
-	case ThresholdMode::GARROTE:
+	case OpenMPThresholdMode::GARROTE:
 		thresholdFunction = garrot_shrink;
 		break;
 	}
@@ -403,7 +559,7 @@ void WaveletThreshold::applyBayesShrink(
 /**
 * Other helper functions
 */
-double WaveletThreshold::calculateUniversalThreshold(
+double OpenMPWaveletThreshold::calculateUniversalThreshold(
 	cv::Mat& highFreqBand
 ) {
 
@@ -415,7 +571,7 @@ double WaveletThreshold::calculateUniversalThreshold(
 }
 
 
-double WaveletThreshold::calculateSigma(
+double OpenMPWaveletThreshold::calculateSigma(
 	cv::Mat& coeffs
 ) {
 	// Flatten the high-frequency coefficients
@@ -436,7 +592,7 @@ double WaveletThreshold::calculateSigma(
 	return sigma;
 }
 
-float WaveletThreshold::sign(float x)
+float OpenMPWaveletThreshold::sign(float x)
 {
 	float res = 0;
 	if (x == 0)
@@ -454,17 +610,17 @@ float WaveletThreshold::sign(float x)
 	return res;
 }
 
-float WaveletThreshold::soft_shrink(float d, float threshold)
+float OpenMPWaveletThreshold::soft_shrink(float d, float threshold)
 {
 	return std::abs(d) > threshold ? std::copysign(std::abs(d) - threshold, d) : 0.0;
 }
 
-float WaveletThreshold::hard_shrink(float x, float threshold)
+float OpenMPWaveletThreshold::hard_shrink(float x, float threshold)
 {
 	return std::abs(x) > threshold ? x : 0.0;
 }
 
-float WaveletThreshold::garrot_shrink(float x, float threshold)
+float OpenMPWaveletThreshold::garrot_shrink(float x, float threshold)
 {
 	return std::abs(x) > threshold ? x - ((threshold * threshold) / x) : 0.0;
 }

@@ -1,3 +1,10 @@
 #pragma once
 
-void TestFunctionSeq();
+#include "SequentialWaveletThreshold.h"
+
+class Sequential
+{
+public:
+	SequentialWaveletThreshold waveletThreshold;
+	void TestFunctionSeq(cv::Mat& input);
+};

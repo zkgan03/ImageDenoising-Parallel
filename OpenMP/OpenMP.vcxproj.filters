@@ -18,18 +18,18 @@
     <ClCompile Include="OpenMP.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="HaarWavelet.cpp">
+    <ClCompile Include="OpenMPHaarWavelet.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="WaveletThreshold.cpp">
+    <ClCompile Include="OpenMPWaveletThreshold.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="HaarWavelet.h">
+    <ClInclude Include="OpenMPHaarWavelet.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="WaveletThreshold.h">
+    <ClInclude Include="OpenMPWaveletThreshold.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="OpenMP.h">

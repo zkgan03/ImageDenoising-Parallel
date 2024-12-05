@@ -153,13 +153,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CUDA.cpp" />
-    <ClCompile Include="HaarWavelet.cpp" />
-    <ClCompile Include="WaveletThreshold.cpp" />
+    <ClCompile Include="CUDAHaarWavelet.cpp" />
+    <ClCompile Include="CUDAWaveletThreshold.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="HaarWavelet.h" />
+    <ClInclude Include="CUDAHaarWavelet.h" />
     <ClInclude Include="CUDA.h" />
-    <ClInclude Include="WaveletThreshold.h" />
+    <ClInclude Include="CUDAWaveletThreshold.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

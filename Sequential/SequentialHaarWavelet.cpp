@@ -1,10 +1,9 @@
 #include <iostream>
 #include <opencv2/core.hpp>
-#include <omp.h>
 
-#include "HaarWavelet.h"
+#include "SequentialHaarWavelet.h"
 
-void HaarWavelet::dwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
+void SequentialHaarWavelet::dwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
 
 	std::cout << "Performing DWT with " << nIteration << " iterations" << std::endl;
 
@@ -12,7 +11,6 @@ void HaarWavelet::dwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
 	temp.convertTo(temp, CV_64F);
 
 	output = input.clone();
-
 	output.convertTo(output, CV_64F);
 
 	int rows = output.rows;
@@ -27,7 +25,6 @@ void HaarWavelet::dwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
 		std::cout << "rows num :" << (rows >> i) << " cols num :" << (cols >> i) << std::endl;
 
 		/* row / 2^i (Since the image will divided by 2 for each level) */
-#pragma omp parallel for collapse(2)
 		for (int r = 0; r < rows >> i; r++) {
 			for (int c = 0; c < cols >> i; c++) {
 				//std::cout << "current row x col: " << r << " x " << j << std::endl;
@@ -39,10 +36,10 @@ void HaarWavelet::dwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
 				double bottomLeft = temp.at<double>(operateRow + 1, opearateCol);
 				double bottomRight = temp.at<double>(operateRow + 1, opearateCol + 1);
 
-				output.at<double>(r, c) = (topLeft + topRight + bottomLeft + bottomRight) * 0.25; // average (LL)
-				output.at<double>(r, c + (cols >> i)) = (topLeft - topRight + bottomLeft - bottomRight) * 0.25; // vertical (HL)
-				output.at<double>(r + (rows >> i), c) = (topLeft + topRight - bottomLeft - bottomRight) * 0.25; // horizontal (LH)
-				output.at<double>(r + (rows >> i), c + (cols >> i)) = (topLeft - topRight - bottomLeft + bottomRight) * 0.25; // diagonal (HH)
+				output.at<double>(r, c) = (topLeft + topRight + bottomLeft + bottomRight) * 0.5; // average (LL)
+				output.at<double>(r, c + (cols >> i)) = (topLeft - topRight + bottomLeft - bottomRight) * 0.5; // vertical (HL)
+				output.at<double>(r + (rows >> i), c) = (topLeft + topRight - bottomLeft - bottomRight) * 0.5; // horizontal (LH)
+				output.at<double>(r + (rows >> i), c + (cols >> i)) = (topLeft - topRight - bottomLeft + bottomRight) * 0.5; // diagonal (HH)
 			}
 		}
 
@@ -50,7 +47,7 @@ void HaarWavelet::dwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
 	}
 }
 
-void HaarWavelet::idwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
+void SequentialHaarWavelet::idwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
 	std::cout << "Performing IDWT with " << nIteration << " iterations" << std::endl;
 
 	cv::Mat temp = input.clone();
@@ -67,7 +64,6 @@ void HaarWavelet::idwt(const cv::Mat& input, cv::Mat& output, int nIteration) {
 		int currentRows = rows >> i;
 		int currentCols = cols >> i;
 
-#pragma omp parallel for collapse(2)
 		for (int r = 0; r < currentRows; ++r) {
 			for (int c = 0; c < currentCols; ++c) {
 				// Retrieve DWT coefficients

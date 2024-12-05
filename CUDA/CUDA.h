@@ -1,3 +1,10 @@
 #pragma once
 
-void TestFunctionCUDA();	
+#include "CUDAWaveletThreshold.h"
+
+class CUDA
+{
+public:
+	CUDAWaveletThreshold waveletThreshold;
+	void TestFunctionCUDA(cv::Mat& input);
+};

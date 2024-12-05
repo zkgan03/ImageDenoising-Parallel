@@ -2,17 +2,17 @@
 
 #include <opencv2/core.hpp>
 
-enum class ThresholdMode {
+enum class OpenMPThresholdMode {
 	HARD,
 	SOFT,
 	GARROTE,
 };
 
 
-class WaveletThreshold {
+class OpenMPWaveletThreshold {
 
 public:
-	WaveletThreshold() {}
+	OpenMPWaveletThreshold() {}
 
 
 	/**
@@ -29,7 +29,7 @@ public:
 		const cv::Mat& input,
 		cv::Mat& output,
 		int level,
-		ThresholdMode mode
+		OpenMPThresholdMode mode = OpenMPThresholdMode::SOFT
 	);
 
 	/**
@@ -75,18 +75,20 @@ public:
 		const cv::Mat& input,
 		cv::Mat& output,
 		int level,
-		ThresholdMode mode = ThresholdMode::SOFT
+		OpenMPThresholdMode mode = OpenMPThresholdMode::SOFT
 	);
 
 private:
 	static void applyNeighShrink(
-		cv::Mat& coeffs,
+		const cv::Mat& coeffs,
+		cv::Mat& output,
 		double threshold,
 		int halfWindow
 	);
 
 	static void applyModiNeighShrink(
-		cv::Mat& coeffs,
+		const cv::Mat& coeffs,
+		cv::Mat& output, 
 		double threshold,
 		int halfWindow
 	);
@@ -94,7 +96,7 @@ private:
 	static void applyBayesShrink(
 		cv::Mat& coeffs,
 		double sigmaNoise,
-		ThresholdMode mode = ThresholdMode::SOFT
+		OpenMPThresholdMode mode = OpenMPThresholdMode::SOFT
 	);
 
 	/**

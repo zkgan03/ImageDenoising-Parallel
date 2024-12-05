@@ -159,14 +159,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="HaarWavelet.cpp" />
+    <ClCompile Include="OpenMPHaarWavelet.cpp" />
     <ClCompile Include="OpenMP.cpp" />
-    <ClCompile Include="WaveletThreshold.cpp" />
+    <ClCompile Include="OpenMPWaveletThreshold.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="HaarWavelet.h" />
+    <ClInclude Include="OpenMPHaarWavelet.h" />
     <ClInclude Include="OpenMP.h" />
-    <ClInclude Include="WaveletThreshold.h" />
+    <ClInclude Include="OpenMPWaveletThreshold.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

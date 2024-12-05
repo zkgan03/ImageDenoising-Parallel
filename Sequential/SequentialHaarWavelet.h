@@ -2,10 +2,10 @@
 
 #include <opencv2/core.hpp>
 
-class HaarWavelet
+class SequentialHaarWavelet
 {
 public:
-	HaarWavelet() {}
+	SequentialHaarWavelet() {}
 
 	/**
 	 * @brief Perform Haar wavelet decomposition
