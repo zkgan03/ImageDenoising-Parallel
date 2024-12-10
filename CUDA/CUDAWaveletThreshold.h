@@ -2,17 +2,14 @@
 
 #include <opencv2/core.hpp>
 
-enum class CUDAThresholdMode {
-	HARD,
-	SOFT,
-	GARROTE,
-};
 
+namespace CUDAWaveletThreshold {
 
-class CUDAWaveletThreshold {
-
-public:
-	CUDAWaveletThreshold() {}
+	enum class CUDAThresholdMode {
+		HARD,
+		SOFT,
+		GARROTE,
+	};
 
 
 	/**
@@ -25,7 +22,7 @@ public:
 	* @param level Number of decomposition levels in the DWT
 	* @param mode Thresholding mode (HARD, SOFT, GARROTE)
 	*/
-	static void visuShrink(
+	void visuShrink(
 		const cv::Mat& input,
 		cv::Mat& output,
 		int level,
@@ -44,7 +41,7 @@ public:
 	* @param windowSize Size of the window area
 	* @param mode Thresholding mode (HARD, SOFT, GARROTE)
 	*/
-	static void neighShrink(
+	void neighShrink(
 		const cv::Mat& input,
 		cv::Mat& output,
 		int level,
@@ -58,7 +55,7 @@ public:
 	*
 	* Based on Paper: "Image Denoising using Discrete Wavelet transform" by S.Kother Mohideen†  Dr. S. Arumuga Perumal††, Dr. M.Mohamed Sathik
 	*/
-	static void modineighShrink(
+	void modineighShrink(
 		const cv::Mat& input,
 		cv::Mat& output,
 		int level,
@@ -71,99 +68,104 @@ public:
 	*
 	* Based on Paper : "Adaptive wavelet thresholding for image denoising and compression" by S.G. Chang; Bin Yu; M. Vetterli
 	*/
-	static void bayesShrink(
+	void bayesShrink(
 		const cv::Mat& input,
 		cv::Mat& output,
 		int level,
 		CUDAThresholdMode mode = CUDAThresholdMode::SOFT
 	);
 
-private:
-	static void applyNeighShrink(
-		const cv::Mat& coeffs,
-		cv::Mat& output,
-		double threshold,
-		int halfWindow
-	);
-
-	static void applyModiNeighShrink(
-		const cv::Mat& coeffs,
-		cv::Mat& output,
-		double threshold,
-		int halfWindow
-	);
-
-	static void applyBayesShrink(
-		cv::Mat& coeffs,
-		double sigmaNoise,
-		CUDAThresholdMode mode = CUDAThresholdMode::SOFT
-	);
 
 	/**
-	 * @brief Calculate the median absolute deviation (MAD) of the input data.
-	 *
-	 * @param coeffs coefficients, normally the high-frequency band
-	 * @return double MAD value
-	 *
+	* Private helper functions
 	*/
-	static double calculateSigma(cv::Mat& coeffs);
-
-	/**
-	 * @brief Sign function
-	 *
-	 * @param x Input value
-	 *
-	 * @return float
-	*/
-	float sign(float x);
-
-	/**
-	 * @brief Soft shrinkage
-	 *
-	 * Coefficients with a magnitude less than the threshold are set to zero,
-	 * while coefficients greater than the threshold are shrunk towards zero.
-	 *
-	 * @param d Input value
-	 * @param threshold Threshold
-	 * @return float
-	*/
-	static float soft_shrink(float d, float threshold);
-
-	/**
-	 * @brief Hard shrinkage
-	 *
-	 * Coefficients with a magnitude less than the threshold are set to zero.
-	 *
-	 * @param x Input value
-	 * @param threshold Threshold
-	 * @return float
-	*/
-	static float hard_shrink(float x, float threshold);
-
-	/**
-	 * @brief Garrot shrinkage
-	 *
-	 * Coefficients with a magnitude less than the threshold are set to zero,
-	 * while coefficients greater than the threshold are shrunk towards zero.
-	 * The amount of shrinkage is proportional to the magnitude of the coefficient.
-	 *
-	 * @param x Input value
-	 * @param threshold Threshold
-	 * @return float
-	*/
-	static float garrot_shrink(float x, float threshold);
 
 
-	/**
-	 * @brief Calculate the threshold value for a given high-frequency band using the VisuShrink method.
-	 *
-	 * Calculate the threshold value for a given high-frequency band using the Median Absolute Deviation (MAD) method.
-	 *
-	 * @param highFreqBand High-frequency band (highest level HH sub-band)
-	 * @return double Threshold value
-	 *
-	*/
-	static double calculateUniversalThreshold(cv::Mat& highFreqBand);
+	namespace {
+		void applyNeighShrink(
+			const cv::Mat& coeffs,
+			cv::Mat& output,
+			double threshold,
+			int halfWindow
+		);
 
-	// TODO : Implement NeighShrink functions
-};
+		void applyModiNeighShrink(
+			const cv::Mat& coeffs,
+			cv::Mat& output,
+			double threshold,
+			int halfWindow
+		);
+
+		void applyBayesShrink(
+			cv::Mat& coeffs,
+			double sigmaNoise,
+			CUDAThresholdMode mode = CUDAThresholdMode::SOFT
+		);
+
+		/**
+		 * @brief Calculate the median absolute deviation (MAD) of the input data.
+		 *
+		 * @param coeffs coefficients, normally the high-frequency band
+		 * @return double MAD value
+		 *
+		*/
+		double calculateSigma(cv::Mat& coeffs);
+
+		/**
+		 * @brief Sign function
+		 *
+		 * @param x Input value
+		 *
+		 * @return float
+		*/
+		float sign(float x);
+
+		/**
+		 * @brief Soft shrinkage
+		 *
+		 * Coefficients with a magnitude less than the threshold are set to zero,
+		 * while coefficients greater than the threshold are shrunk towards zero.
+		 *
+		 * @param d Input value
+		 * @param threshold Threshold
+		 * @return float
+		*/
+		float soft_shrink(float d, float threshold);
+
+		/**
+		 * @brief Hard shrinkage
+		 *
+		 * Coefficients with a magnitude less than the threshold are set to zero.
+		 *
+		 * @param x Input value
+		 * @param threshold Threshold
+		 * @return float
+		*/
+		float hard_shrink(float x, float threshold);
+
+		/**
+		 * @brief Garrot shrinkage
+		 *
+		 * Coefficients with a magnitude less than the threshold are set to zero,
+		 * while coefficients greater than the threshold are shrunk towards zero.
+		 * The amount of shrinkage is proportional to the magnitude of the coefficient.
+		 *
+		 * @param x Input value
+		 * @param threshold Threshold
+		 * @return float
+		*/
+		float garrot_shrink(float x, float threshold);
+
+
+		/**
+		 * @brief Calculate the threshold value for a given high-frequency band using the VisuShrink method.
+		 *
+		 * Calculate the threshold value for a given high-frequency band using the Median Absolute Deviation (MAD) method.
+		 *
+		 * @param highFreqBand High-frequency band (highest level HH sub-band)
+		 * @return double Threshold value
+		 *
+		*/
+		double calculateUniversalThreshold(cv::Mat& highFreqBand);
+	}
+}

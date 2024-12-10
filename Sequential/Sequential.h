@@ -2,9 +2,7 @@
 
 #include "SequentialWaveletThreshold.h"
 
-class Sequential
+namespace Sequential
 {
-public:
-	SequentialWaveletThreshold waveletThreshold;
 	void TestFunctionSeq(cv::Mat& input);
 };

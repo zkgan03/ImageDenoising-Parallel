@@ -2,9 +2,7 @@
 
 #include "CUDAWaveletThreshold.h"
 
-class CUDA
+namespace CUDA
 {
-public:
-	CUDAWaveletThreshold waveletThreshold;
 	void TestFunctionCUDA(cv::Mat& input);
-};
+}

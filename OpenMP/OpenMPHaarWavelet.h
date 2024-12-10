@@ -2,11 +2,8 @@
 
 #include <opencv2/core.hpp>
 
-class OpenMPHaarWavelet
+namespace OpenMPHaarWavelet
 {
-public:
-	OpenMPHaarWavelet() {}
-
 	/**
 	 * @brief Perform Haar wavelet decomposition
 	 *
@@ -16,7 +13,7 @@ public:
 	 * @param output Output image
 	 * @param nIteration Number of decomposition iterations
 	 */
-	static void dwt(const cv::Mat& input, cv::Mat& output, int nIteration);
+	void dwt(const cv::Mat& input, cv::Mat& output, int nIteration);
 
 	/**
 	 * @brief Perform Haar wavelet reconstruction
@@ -27,6 +24,6 @@ public:
 	 * @param output Output image
 	 * @param nIteration Number of decomposition iterations
 	 */
-	static void idwt(const cv::Mat& input, cv::Mat& output, int nIteration);
+	void idwt(const cv::Mat& input, cv::Mat& output, int nIteration);
 };
 

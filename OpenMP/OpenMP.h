@@ -2,10 +2,7 @@
 
 #include "OpenMPWaveletThreshold.h"
 
-class OpenMP
+namespace OpenMP
 {
-public:
-	OpenMPWaveletThreshold waveletThreshold;
 	void TestFunctionOpenMP(cv::Mat& input);
-
-};
+}

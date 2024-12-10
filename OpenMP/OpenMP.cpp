@@ -3,11 +3,7 @@
 
 #include "OpenMP.h"
 
-
-void OpenMP::TestFunctionOpenMP(cv::Mat& input)
+namespace Open
 {
-	//Display image
-	cv::imshow("OpenMP window", input);
-
-	std::cout << "Hello from OpenMP!" << std::endl;
-}
+	void TestFunctionOpenMP(cv::Mat& input);
+};

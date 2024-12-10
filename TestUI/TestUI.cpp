@@ -172,74 +172,69 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			if (!noisyImage.empty()) {
 				switch (selectedMethod) {
 				case 0: {
-					OpenMP openMP;
-					OpenMPWaveletThreshold waveletThreshold = openMP.waveletThreshold;
 					switch (selectedShrinkage) {
 					case 0:
 						for (int i = 0; i < noisyImageChannels.size(); i++) {
-							waveletThreshold.bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+							OpenMPWaveletThreshold::bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
 						}
 						break;
 					case 1:
 						for (int i = 0; i < noisyImageChannels.size(); i++) {
-							waveletThreshold.visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+							OpenMPWaveletThreshold::visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
 						}
 						break;
 					case 2:
 						for (int i = 0; i < noisyImageChannels.size(); i++) {
-							waveletThreshold.neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+							OpenMPWaveletThreshold::neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
 						}
 						break;
 					case 3:
 						for (int i = 0; i < noisyImage.channels(); i++) {
-							waveletThreshold.modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+							OpenMPWaveletThreshold::modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
 						}
 						break;
 					}
 					break;
 				}
 				case 1: {
-					CUDA cuda;
-					CUDAWaveletThreshold cudaWaveletThreshold = cuda.waveletThreshold;
+
 					switch (selectedShrinkage) {
 					case 0:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
-							cudaWaveletThreshold.bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+							CUDAWaveletThreshold::bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
 						break;
 					case 1:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
-							cudaWaveletThreshold.visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+							CUDAWaveletThreshold::visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
 						break;
 					case 2:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
-							cudaWaveletThreshold.neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+							CUDAWaveletThreshold::neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
 						break;
 					case 3:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
-							cudaWaveletThreshold.modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+							CUDAWaveletThreshold::modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
 						break;
 					}
 					break;
 				}
 				case 2: {
-					Sequential sequential;
-					SequentialWaveletThreshold sequentialWaveletThreshold = sequential.waveletThreshold;
 					switch (selectedShrinkage) {
 					case 0:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
-							sequentialWaveletThreshold.bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+							SequentialWaveletThreshold::bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
 						break;
 					case 1:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
-							sequentialWaveletThreshold.visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+							SequentialWaveletThreshold::visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
 						break;
 					case 2:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
-							sequentialWaveletThreshold.neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+							SequentialWaveletThreshold::neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
 						break;
 					case 3:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
-							sequentialWaveletThreshold.modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+							SequentialWaveletThreshold::modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
 						break;
 					}
 					break;
