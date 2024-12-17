@@ -270,39 +270,128 @@ namespace CUDAWaveletThreshold {
 	/***************************************
 	* NeighShrink thresholding function.
 	****************************************/
-	void applyNeighShrink(
-		const cv::Mat& coeffs,
-		cv::Mat& output,
-		double threshold,
-		int halfWindow
+	__global__ void applyNeighShrinkKernel(
+		const float* __restrict__ coeffs,
+		float* __restrict__ output,
+		int rows, int cols,
+		float threshold, int halfWindow
 	) {
+		int r = blockIdx.y * blockDim.y + threadIdx.y;
+		int c = blockIdx.x * blockDim.x + threadIdx.x;
 
-		for (int r = 0; r < coeffs.rows; ++r) {
-			for (int c = 0; c < coeffs.cols; ++c) {
+		if (r >= rows || c >= cols) {
+			return;
+		}
 
-				double squareSum = 0.0;
+		float squareSum = 0.0;
 
-				// Loop through the window for each pixel
-				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
-					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
+		for (int wr = -halfWindow; wr <= halfWindow; wr++) {
+			for (int wc = -halfWindow; wc <= halfWindow; wc++) {
+				int rr = r + wr;
+				int cc = c + wc;
 
-						// Check if the window is within the image boundaries
-						if (r + wr >= 0 &&
-							r + wr < coeffs.rows &&
-							c + wc >= 0 &&
-							c + wc < coeffs.cols) {
-
-							double value = coeffs.at<double>(r + wr, c + wc);
-							squareSum += value * value;
-						}
-					}
+				if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) {
+					float value = coeffs[rr * cols + cc];
+					squareSum += value * value;
 				}
-
-				double& value = output.at<double>(r, c);
-				value *= std::max(1.0 - ((threshold * threshold) / squareSum), 0.0);
 			}
 		}
+
+		float value = coeffs[r * cols + c];
+		float shrinkage = 1.0f - ((threshold * threshold) / squareSum);
+
+		if (shrinkage < 0.0f) {
+			shrinkage = 0.0f;
+		}
+
+		output[r * cols + c] = value * shrinkage;
 	}
+
+	void applyNeighShrink(
+		cv::Mat& HL,
+		cv::Mat& LH,
+		cv::Mat& HH,
+		double threshold,
+		int windowSize
+	) {
+
+		int rows = HL.rows;
+		int cols = HL.cols;
+		int halfWindow = windowSize / 2;
+		int memory_size = sizeof(float) * rows * cols;
+
+		float* float_HL = (float*)HL.data;
+		float* float_LH = (float*)LH.data;
+		float* float_HH = (float*)HH.data;
+
+		float* gpu_HL, * gpu_LH, * gpu_HH;
+		CudaWrapper::malloc((void**)&gpu_HL, memory_size);
+		CudaWrapper::malloc((void**)&gpu_LH, memory_size);
+		CudaWrapper::malloc((void**)&gpu_HH, memory_size);
+
+		float* output_HL_data, * output_LH_data, * output_HH_data;
+		CudaWrapper::malloc((void**)&output_HL_data, memory_size);
+		CudaWrapper::malloc((void**)&output_LH_data, memory_size);
+		CudaWrapper::malloc((void**)&output_HH_data, memory_size);
+
+		dim3 block_size(BLOCK_SIZE, BLOCK_SIZE);
+		dim3 grid_size((cols + BLOCK_SIZE - 1) / BLOCK_SIZE, (rows + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
+		std::cout << "grid: " << grid_size.x << "x" << grid_size.y << std::endl;
+		std::cout << "block: " << block_size.x << "x" << block_size.y << std::endl;
+
+		cudaStream_t stream1, stream2, stream3;
+		CudaWrapper::streamCreate(&stream1);
+		CudaWrapper::streamCreate(&stream2);
+		CudaWrapper::streamCreate(&stream3);
+
+		CudaWrapper::memcpy(gpu_HL, float_HL, memory_size, cudaMemcpyHostToDevice, stream1);
+		applyNeighShrinkKernel << <grid_size, block_size, 0, stream1 >> > (
+			gpu_HL, output_HL_data,
+			rows, cols,
+			(float)threshold,
+			halfWindow
+			);
+
+		CudaWrapper::memcpy(gpu_LH, float_LH, memory_size, cudaMemcpyHostToDevice, stream2);
+		applyNeighShrinkKernel << <grid_size, block_size, 0, stream2 >> > (
+			gpu_LH, output_LH_data,
+			rows, cols,
+			(float)threshold,
+			halfWindow
+			);
+
+		CudaWrapper::memcpy(gpu_HH, float_HH, memory_size, cudaMemcpyHostToDevice, stream3);
+		applyNeighShrinkKernel << <grid_size, block_size, 0, stream3 >> > (
+			gpu_HH, output_HH_data,
+			rows, cols,
+			(float)threshold,
+			halfWindow
+			);
+
+		CudaWrapper::memcpy(float_HL, output_HL_data, memory_size, cudaMemcpyDeviceToHost, stream1);
+		CudaWrapper::memcpy(float_LH, output_LH_data, memory_size, cudaMemcpyDeviceToHost, stream2);
+		CudaWrapper::memcpy(float_HH, output_HH_data, memory_size, cudaMemcpyDeviceToHost, stream3);
+
+		CudaWrapper::streamSynchronize(stream1);
+		CudaWrapper::streamSynchronize(stream2);
+		CudaWrapper::streamSynchronize(stream3);
+
+
+		// Free memory
+		CudaWrapper::free(output_HL_data);
+		CudaWrapper::free(output_LH_data);
+		CudaWrapper::free(output_HH_data);
+
+		CudaWrapper::free(gpu_HL);
+		CudaWrapper::free(gpu_LH);
+		CudaWrapper::free(gpu_HH);
+
+		CudaWrapper::streamDestroy(stream1);
+		CudaWrapper::streamDestroy(stream2);
+		CudaWrapper::streamDestroy(stream3);
+	}
+
 	/**
 	* NeighShrink thresholding function.
 	*/
@@ -354,76 +443,52 @@ namespace CUDAWaveletThreshold {
 		// Apply NeighShrink thresholding
 		// Loop through each level of the wavelet decomposition
 		output = dwtOutput.clone();
-
 		for (int i = 1; i <= level; ++i) {
 
 			std::cout << "Performing NeighShrink level: " << i << std::endl;
-
 			//LH
-			cv::Mat lhCoeffs = dwtOutput(
-				cv::Rect(
-					0,
-					rows >> i,
-					cols >> i,
-					rows >> i
-				)
+			cv::Rect lhRoi(
+				0,
+				rows >> i,
+				cols >> i,
+				rows >> i
 			);
-
-			cv::Mat lhOutput = output(
-				cv::Rect(
-					0,
-					rows >> i,
-					cols >> i,
-					rows >> i
-				)
-			);
+			cv::Mat lhOutput = output(lhRoi).clone();
 
 			//HL
-			cv::Mat hlCoeffs = dwtOutput(
-				cv::Rect(
-					cols >> i,
-					0,
-					cols >> i,
-					rows >> i
-				)
+			cv::Rect hlRoi(
+				cols >> i,
+				0,
+				cols >> i,
+				rows >> i
 			);
-
-			cv::Mat hlOutput = output(
-				cv::Rect(
-					cols >> i,
-					0,
-					cols >> i,
-					rows >> i
-				)
-			);
+			cv::Mat hlOutput = output(hlRoi).clone();
 
 			//HH
-			cv::Mat hhCoeffs = dwtOutput(
-				cv::Rect(
-					cols >> i,
-					rows >> i,
-					cols >> i,
-					rows >> i
-				)
+			cv::Rect hhRoi(
+				cols >> i,
+				rows >> i,
+				cols >> i,
+				rows >> i
+			);
+			cv::Mat hhOutput = output(hhRoi).clone();
+
+			applyNeighShrink(
+				lhOutput,
+				hlOutput,
+				hhOutput,
+				threshold, windowSize
 			);
 
-			cv::Mat hhOutput = output(
-				cv::Rect(
-					cols >> i,
-					rows >> i,
-					cols >> i,
-					rows >> i
-				)
-			);
-
-			applyNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
-			applyNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
-			applyNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
+			lhOutput.copyTo(output(lhRoi));
+			hlOutput.copyTo(output(hlRoi));
+			hhOutput.copyTo(output(hhRoi));
 		}
 
 		/*
 			4. Apply inverse wavelet transform to the output image
 		*/
+
 		CUDAHaarWavelet::idwt(output, output, level); // idwt
 	}
 
@@ -642,10 +707,6 @@ namespace CUDAWaveletThreshold {
 				hhOutput,
 				threshold, windowSize
 			);
-
-			//applyModiNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
-			//applyModiNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
-			//applyModiNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
 
 			lhOutput.copyTo(output(lhRoi));
 			hlOutput.copyTo(output(hlRoi));
