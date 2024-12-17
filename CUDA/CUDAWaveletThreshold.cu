@@ -156,6 +156,86 @@ namespace CUDAWaveletThreshold {
 	/**
 	* VisuShrink thresholding function.
 	*/
+	__global__ void applyVisuShrinkKernel(
+		float* __restrict__ coeffs,
+		float threshold,
+		int rows, int cols,
+		int mode
+	) {
+		int r = blockIdx.y * blockDim.y + threadIdx.y;
+		int c = blockIdx.x * blockDim.x + threadIdx.x;
+
+		if (r >= rows || c >= cols) {
+			return;
+		}
+
+		float value = coeffs[r * cols + c];
+		coeffs[r * cols + c] = thresholdFunction(value, threshold, mode);
+	}
+
+	void applyVisuShrink(
+		cv::Mat& HL,
+		cv::Mat& LH,
+		cv::Mat& HH,
+		double threshold,
+		CUDAThresholdMode mode
+	) {
+		int memorySize = sizeof(float) * HL.rows * HL.cols;
+
+		float* float_HL = (float*)HL.data;
+		float* float_LH = (float*)LH.data;
+		float* float_HH = (float*)HH.data;
+
+		float* gpu_HL;
+		CudaWrapper::malloc((void**)&gpu_HL, memorySize);
+		float* gpu_LH;
+		CudaWrapper::malloc((void**)&gpu_LH, memorySize);
+		float* gpu_HH;
+		CudaWrapper::malloc((void**)&gpu_HH, memorySize);
+
+		cudaStream_t stream1, stream2, stream3;
+		CudaWrapper::streamCreate(&stream1);
+		CudaWrapper::streamCreate(&stream2);
+		CudaWrapper::streamCreate(&stream3);
+
+		dim3 block(BLOCK_SIZE, BLOCK_SIZE);
+		dim3 grid((HL.cols + BLOCK_SIZE - 1) / BLOCK_SIZE, (HL.rows + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
+		CudaWrapper::memcpy(gpu_HL, float_HL, memorySize, cudaMemcpyHostToDevice, stream1);
+		applyVisuShrinkKernel << <grid, block, 0, stream1 >> > (
+			gpu_HL, (float)threshold,
+			HL.rows, HL.cols, (int)mode
+			);
+
+		CudaWrapper::memcpy(gpu_LH, float_LH, memorySize, cudaMemcpyHostToDevice, stream2);
+		applyVisuShrinkKernel << <grid, block, 0, stream2 >> > (
+			gpu_LH, (float)threshold,
+			LH.rows, LH.cols, (int)mode
+			);
+
+		CudaWrapper::memcpy(gpu_HH, float_HH, memorySize, cudaMemcpyHostToDevice, stream3);
+		applyVisuShrinkKernel << <grid, block, 0, stream3 >> > (
+			gpu_HH, (float)threshold,
+			HH.rows, HH.cols, (int)mode
+			);
+
+		CudaWrapper::memcpy(float_HL, gpu_HL, memorySize, cudaMemcpyDeviceToHost, stream1);
+		CudaWrapper::memcpy(float_LH, gpu_LH, memorySize, cudaMemcpyDeviceToHost, stream2);
+		CudaWrapper::memcpy(float_HH, gpu_HH, memorySize, cudaMemcpyDeviceToHost, stream3);
+
+		CudaWrapper::streamSynchronize(stream1);
+		CudaWrapper::streamSynchronize(stream2);
+		CudaWrapper::streamSynchronize(stream3);
+
+		CudaWrapper::free(gpu_HL);
+		CudaWrapper::free(gpu_LH);
+		CudaWrapper::free(gpu_HH);
+
+		CudaWrapper::streamDestroy(stream1);
+		CudaWrapper::streamDestroy(stream2);
+		CudaWrapper::streamDestroy(stream3);
+	}
+
 	void visuShrink(
 		const cv::Mat& input,
 		cv::Mat& output,
@@ -173,25 +253,19 @@ namespace CUDAWaveletThreshold {
 			1. apply wavelet transform to the input image
 		*/
 		std::cout << "Performing DWT" << std::endl;
-		cv::Mat dwtOutput;
-		CUDAHaarWavelet::dwt(input, dwtOutput, level); // dwt
+		CUDAHaarWavelet::dwt(input, output, level); // dwt
 
-		//display the dwt output
-		//cv::Mat dwtOutputDisplay = dwtOutput.clone();
-		//cv::normalize(dwtOutputDisplay, dwtOutputDisplay, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-		//cv::imshow("DWT Output", dwtOutputDisplay);
-		//cv::waitKey(0);
 
 		// Initialize variables
-		int rows = dwtOutput.rows;
-		int cols = dwtOutput.cols;
+		int rows = output.rows;
+		int cols = output.cols;
 
 		/*
 			2. Calc Universal Threshold
 		*/
 		std::cout << "Calculating Universal Threshold" << std::endl;
 		// Based on many paper, the thresholding is applied to the high-frequency sub-bands on first level
-		cv::Mat highFreqBand = dwtOutput(
+		cv::Mat highFreqBand = output(
 			cv::Rect(
 				cols >> 1,
 				rows >> 1,
@@ -202,68 +276,62 @@ namespace CUDAWaveletThreshold {
 		double threshold = calculateUniversalThreshold(highFreqBand);
 
 		/*
-			3. select the thresholding function
-		*/
-		std::cout << "Selecting Threshold " << std::endl;
-		float (*thresholdFunction)(float x, float threshold) = soft_shrink;
-		switch (mode) {
-		case CUDAThresholdMode::HARD:
-			thresholdFunction = hard_shrink;
-			break;
-		case CUDAThresholdMode::SOFT:
-			thresholdFunction = soft_shrink;
-			break;
-		case CUDAThresholdMode::GARROTE:
-			thresholdFunction = garrot_shrink;
-			break;
-		}
-
-		/*
-			4. Apply VisuShrink thresholding
+			3. Apply VisuShrink thresholding
 		*/
 
 		std::cout << "Applying VisuShrink" << std::endl;
 
 		// Initialize the output image as dwtOutput
-		output = dwtOutput.clone();
-
 		for (int i = 1; i <= level; i++) {
 
 			std::cout << "Performing VisuShrink level: " << i << std::endl;
 
-			// Apply threshold to high-frequency sub-bands
-			for (int r = 0; r < rows >> i; r++) {
-				for (int c = 0; c < cols >> i; c++) {
-					// LH band
-					double& lh = output.at<double>(r + (rows >> i), c);
-					lh = thresholdFunction(dwtOutput.at<double>(r + (rows >> i), c), threshold);
+			//LH
+			cv::Rect lhRoi(
+				0,
+				rows >> i,
+				cols >> i,
+				rows >> i
+			);
+			cv::Mat lhOutput = output(lhRoi).clone();
 
-					// HL band
-					double& hl = output.at<double>(r, c + (cols >> i));
-					hl = thresholdFunction(dwtOutput.at<double>(r, c + (cols >> i)), threshold);
+			//HL
+			cv::Rect hlRoi(
+				cols >> i,
+				0,
+				cols >> i,
+				rows >> i
+			);
+			cv::Mat hlOutput = output(hlRoi).clone();
 
-					// HH band
-					double& hh = output.at<double>(r + (rows >> i), c + (cols >> i));
-					hh = thresholdFunction(dwtOutput.at<double>(r + (rows >> i), c + (cols >> i)), threshold);
-				}
-			}
+			//HH
+			cv::Rect hhRoi(
+				cols >> i,
+				rows >> i,
+				cols >> i,
+				rows >> i
+			);
+			cv::Mat hhOutput = output(hhRoi).clone();
+
+			applyVisuShrink(
+				lhOutput,
+				hlOutput,
+				hhOutput,
+				threshold, mode
+			);
+
+			lhOutput.copyTo(output(lhRoi));
+			hlOutput.copyTo(output(hlRoi));
+			hhOutput.copyTo(output(hhRoi));
+			
 		}
 		std::cout << "VisuShrink Done" << std::endl;
-		//cv::Mat outputDisplay = output.clone();
-		//cv::normalize(outputDisplay, outputDisplay, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-		//cv::imshow("VisuShrink Output", outputDisplay);
-		//cv::waitKey(0);
 
 		/*
-			5. apply inverse wavelet transform to the output image
+			4. apply inverse wavelet transform to the output image
 		*/
 		std::cout << "Performing IDWT" << std::endl;
 		CUDAHaarWavelet::idwt(output, output, level); // idwt
-
-		//cv::Mat idwtOutputDisplay = output.clone();
-		//cv::normalize(idwtOutputDisplay, idwtOutputDisplay, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-		//cv::imshow("IDWT Output", idwtOutputDisplay);
-		//cv::waitKey(0);
 	}
 
 
@@ -670,7 +738,6 @@ namespace CUDAWaveletThreshold {
 		*/
 		// Apply NeighShrink thresholding
 		// Loop through each level of the wavelet decomposition
-		output = dwtOutput.clone();
 		for (int i = 1; i <= level; ++i) {
 
 			std::cout << "Performing NeighShrink level: " << i << std::endl;
@@ -681,7 +748,7 @@ namespace CUDAWaveletThreshold {
 				cols >> i,
 				rows >> i
 			);
-			cv::Mat lhOutput = output(lhRoi).clone();
+			cv::Mat lhOutput = dwtOutput(lhRoi).clone();
 
 			//HL
 			cv::Rect hlRoi(
@@ -690,7 +757,7 @@ namespace CUDAWaveletThreshold {
 				cols >> i,
 				rows >> i
 			);
-			cv::Mat hlOutput = output(hlRoi).clone();
+			cv::Mat hlOutput = dwtOutput(hlRoi).clone();
 
 			//HH
 			cv::Rect hhRoi(
@@ -699,7 +766,7 @@ namespace CUDAWaveletThreshold {
 				cols >> i,
 				rows >> i
 			);
-			cv::Mat hhOutput = output(hhRoi).clone();
+			cv::Mat hhOutput = dwtOutput(hhRoi).clone();
 
 			applyModiNeighShrink(
 				lhOutput,
@@ -708,16 +775,16 @@ namespace CUDAWaveletThreshold {
 				threshold, windowSize
 			);
 
-			lhOutput.copyTo(output(lhRoi));
-			hlOutput.copyTo(output(hlRoi));
-			hhOutput.copyTo(output(hhRoi));
+			lhOutput.copyTo(dwtOutput(lhRoi));
+			hlOutput.copyTo(dwtOutput(hlRoi));
+			hhOutput.copyTo(dwtOutput(hhRoi));
 		}
 
 		/*
 			4. Apply inverse wavelet transform to the output image
 		*/
 
-		CUDAHaarWavelet::idwt(output, output, level); // idwt
+		CUDAHaarWavelet::idwt(dwtOutput, output, level); // idwt
 	}
 
 
