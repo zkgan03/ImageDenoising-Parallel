@@ -154,7 +154,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="_CUDA_.cpp" />
     <CudaCompile Include="CUDAHaarWavelet.cu">
       <FileType>Document</FileType>
     </CudaCompile>

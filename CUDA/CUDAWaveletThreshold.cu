@@ -116,39 +116,6 @@ namespace CUDAWaveletThreshold {
 		return threshold;
 	}
 
-	float sign(float x)
-	{
-		float res = 0;
-		if (x == 0)
-		{
-			res = 0;
-		}
-		else if (x > 0)
-		{
-			res = 1;
-		}
-		else if (x < 0)
-		{
-			res = -1;
-		}
-		return res;
-	}
-
-	float soft_shrink(float d, float threshold)
-	{
-		return std::abs(d) > threshold ? std::copysign(std::abs(d) - threshold, d) : 0.0;
-	}
-
-	float hard_shrink(float x, float threshold)
-	{
-		return std::abs(x) > threshold ? x : 0.0;
-	}
-
-	float garrot_shrink(float x, float threshold)
-	{
-		return std::abs(x) > threshold ? x - ((threshold * threshold) / x) : 0.0;
-	}
-
 
 	/***************************************
 	* VisuShrink thresholding function.
@@ -186,11 +153,9 @@ namespace CUDAWaveletThreshold {
 		float* float_LH = (float*)LH.data;
 		float* float_HH = (float*)HH.data;
 
-		float* gpu_HL;
+		float* gpu_HL, * gpu_LH, * gpu_HH;
 		CudaWrapper::malloc((void**)&gpu_HL, memorySize);
-		float* gpu_LH;
 		CudaWrapper::malloc((void**)&gpu_LH, memorySize);
-		float* gpu_HH;
 		CudaWrapper::malloc((void**)&gpu_HH, memorySize);
 
 		cudaStream_t stream1, stream2, stream3;
