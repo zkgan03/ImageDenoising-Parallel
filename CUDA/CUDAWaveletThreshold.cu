@@ -12,6 +12,9 @@
 //
 namespace CUDAWaveletThreshold {
 
+	/***************************************
+	* HELPER functions.
+	****************************************/
 
 	__device__ __forceinline__ float custom_fabs(float x) {
 		if (x < 0) {
@@ -48,161 +51,6 @@ namespace CUDAWaveletThreshold {
 		}
 	}
 
-
-	void applyNeighShrink(
-		const cv::Mat& coeffs,
-		cv::Mat& output,
-		double threshold,
-		int halfWindow
-	) {
-
-		for (int r = 0; r < coeffs.rows; ++r) {
-			for (int c = 0; c < coeffs.cols; ++c) {
-
-				double squareSum = 0.0;
-
-				// Loop through the window for each pixel
-				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
-					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
-
-						// Check if the window is within the image boundaries
-						if (r + wr >= 0 &&
-							r + wr < coeffs.rows &&
-							c + wc >= 0 &&
-							c + wc < coeffs.cols) {
-
-							double value = coeffs.at<double>(r + wr, c + wc);
-							squareSum += value * value;
-						}
-					}
-				}
-
-				double& value = output.at<double>(r, c);
-				value *= std::max(1.0 - ((threshold * threshold) / squareSum), 0.0);
-			}
-		}
-	}
-
-	void applyModiNeighShrink(
-		const cv::Mat& coeffs,
-		cv::Mat& output,
-		double threshold,
-		int halfWindow
-	) {
-
-		for (int r = 0; r < coeffs.rows; ++r) {
-			for (int c = 0; c < coeffs.cols; ++c) {
-
-				double squareSum = 0.0;
-
-				// Loop through the window for each pixel
-				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
-					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
-
-						// Check if the window is within the image boundaries
-						if (r + wr >= 0 &&
-							r + wr < coeffs.rows &&
-							c + wc >= 0 &&
-							c + wc < coeffs.cols) {
-
-							double value = coeffs.at<double>(r + wr, c + wc);
-							squareSum += value * value;
-						}
-					}
-				}
-
-				double& value = output.at<double>(r, c);
-				value *= std::max(1.0 - ((3.0 / 4.0) * (threshold * threshold) / squareSum), 0.0);
-			}
-		}
-	}
-
-	__global__ void applyBayesShrinkKernel(
-		float* __restrict__ coeffs, float threshold,
-		int rows, int cols, int mode
-	) {
-		int r = blockIdx.y * blockDim.y + threadIdx.y;
-		int c = blockIdx.x * blockDim.x + threadIdx.x;
-
-		if (r >= rows || c >= cols) {
-			return;
-		}
-
-		int idx = r * cols + c;
-
-		coeffs[idx] = thresholdFunction(coeffs[idx], threshold, mode);
-	}
-
-	void applyBayesShrink(
-		cv::Mat& HL,
-		double threshold_HL,
-		cv::Mat& LH,
-		double threshold_LH,
-		cv::Mat& HH,
-		double threshold_HH,
-		CUDAThresholdMode mode
-	) {
-
-		int memorySize = sizeof(float) * HL.rows * HL.cols;
-
-		float* float_HL = (float*)HL.data;
-		float* float_LH = (float*)LH.data;
-		float* float_HH = (float*)HH.data;
-
-		float* gpu_HL;
-		CudaWrapper::malloc((void**)&gpu_HL, memorySize);
-		float* gpu_LH;
-		CudaWrapper::malloc((void**)&gpu_LH, memorySize);
-		float* gpu_HH;
-		CudaWrapper::malloc((void**)&gpu_HH, memorySize);
-
-		cudaStream_t stream1, stream2, stream3;
-		CudaWrapper::streamCreate(&stream1);
-		CudaWrapper::streamCreate(&stream2);
-		CudaWrapper::streamCreate(&stream3);
-
-		dim3 block(BLOCK_SIZE, BLOCK_SIZE);
-		dim3 grid((HL.cols + BLOCK_SIZE - 1) / BLOCK_SIZE, (HL.rows + BLOCK_SIZE - 1) / BLOCK_SIZE);
-
-		CudaWrapper::memcpy(gpu_HL, float_HL, memorySize, cudaMemcpyHostToDevice, stream1);
-		applyBayesShrinkKernel << <grid, block, 0, stream1 >> > (
-			gpu_HL, (float)threshold_HL,
-			HL.rows, HL.cols, (int)mode
-			);
-
-		CudaWrapper::memcpy(gpu_LH, float_LH, memorySize, cudaMemcpyHostToDevice, stream2);
-		applyBayesShrinkKernel << <grid, block, 0, stream2 >> > (
-			gpu_LH, (float)threshold_LH,
-			LH.rows, LH.cols, (int)mode
-			);
-
-		CudaWrapper::memcpy(gpu_HH, float_HH, memorySize, cudaMemcpyHostToDevice, stream3);
-		applyBayesShrinkKernel << <grid, block, 0, stream3 >> > (
-			gpu_HH, (float)threshold_HH,
-			HH.rows, HH.cols, (int)mode
-			);
-
-		CudaWrapper::memcpy(float_HL, gpu_HL, memorySize, cudaMemcpyDeviceToHost, stream1);
-		CudaWrapper::memcpy(float_LH, gpu_LH, memorySize, cudaMemcpyDeviceToHost, stream2);
-		CudaWrapper::memcpy(float_HH, gpu_HH, memorySize, cudaMemcpyDeviceToHost, stream3);
-
-		CudaWrapper::streamSynchronize(stream1);
-		CudaWrapper::streamSynchronize(stream2);
-		CudaWrapper::streamSynchronize(stream3);
-
-		CudaWrapper::free(gpu_HL);
-		CudaWrapper::free(gpu_LH);
-		CudaWrapper::free(gpu_HH);
-
-		CudaWrapper::streamDestroy(stream1);
-		CudaWrapper::streamDestroy(stream2);
-		CudaWrapper::streamDestroy(stream3);
-	}
-
-
-	/**
-	* Other helper functions
-	*/
 	double calculateSigma(
 		cv::Mat& coeffs
 	) {
@@ -268,82 +116,6 @@ namespace CUDAWaveletThreshold {
 		return threshold;
 	}
 
-	__global__ void sumOfSquaresKernel(const float* input, float* output, int size) {
-		__shared__ float shared_mem[BLOCK_SIZE * BLOCK_SIZE];
-
-		int tid = threadIdx.x;
-		int idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-		// Initialize shared memory
-		shared_mem[tid] = (idx < size) ? input[idx] * input[idx] : 0.0f;
-
-		__syncthreads();
-
-		// Perform reduction in shared memory
-		for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-			if (tid < stride) {
-				shared_mem[tid] += shared_mem[tid + stride];
-			}
-			__syncthreads();
-		}
-
-		// Write the result of this block to the output
-		if (tid == 0) {
-			output[blockIdx.x] = shared_mem[0];
-		}
-	}
-
-	double calculateBayesThreshold(
-		const cv::Mat& coeffs,
-		double sigmaNoise
-	) {
-		assert(coeffs.type() == CV_32F);
-		assert(coeffs.isContinuous());
-
-		int img_size = coeffs.rows * coeffs.cols;
-		int memory_size = sizeof(float) * img_size;
-
-		dim3 block_size(BLOCK_SIZE * BLOCK_SIZE);
-		int sharedMemSize = block_size.x * sizeof(float);
-		dim3 grid_size((img_size + block_size.x - 1) / block_size.x);
-
-		float* gpu_input;
-		CudaWrapper::malloc((void**)&gpu_input, memory_size);
-		float* gpu_totalVar;
-		CudaWrapper::malloc((void**)&gpu_totalVar, grid_size.x * sizeof(float));
-
-		float* input_data = (float*)coeffs.data;
-		float* partialSum;
-		CudaWrapper::hostAllocate((void**)&partialSum, grid_size.x * sizeof(float), cudaHostAllocDefault);
-
-		CudaWrapper::memcpy(gpu_input, input_data, memory_size, cudaMemcpyHostToDevice);
-
-		sumOfSquaresKernel << <grid_size, block_size, sharedMemSize >> > (
-			gpu_input,
-			gpu_totalVar,
-			img_size
-			);
-
-		CudaWrapper::memcpy(partialSum, gpu_totalVar, grid_size.x * sizeof(float), cudaMemcpyDeviceToHost);
-
-		float totalVar = 0;
-		for (int i = 0; i < grid_size.x; i++) {
-			totalVar += partialSum[i];
-		}
-		totalVar /= img_size;
-		//double partialSum = cv::mean(coeffs.mul(coeffs))[0]; // Total variance
-
-		double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoise * sigmaNoise, 0.0)); // Signal standard deviation
-		double threshold = sigmaNoise * sigmaNoise / sigmaSignal; // BayesShrink threshold
-
-		CudaWrapper::hostFree(partialSum);
-
-		CudaWrapper::free(gpu_input);
-		CudaWrapper::free(gpu_totalVar);
-
-		return threshold;
-	}
-
 	float sign(float x)
 	{
 		float res = 0;
@@ -378,7 +150,9 @@ namespace CUDAWaveletThreshold {
 	}
 
 
-
+	/***************************************
+	* VisuShrink thresholding function.
+	****************************************/
 	/**
 	* VisuShrink thresholding function.
 	*/
@@ -493,6 +267,42 @@ namespace CUDAWaveletThreshold {
 	}
 
 
+	/***************************************
+	* NeighShrink thresholding function.
+	****************************************/
+	void applyNeighShrink(
+		const cv::Mat& coeffs,
+		cv::Mat& output,
+		double threshold,
+		int halfWindow
+	) {
+
+		for (int r = 0; r < coeffs.rows; ++r) {
+			for (int c = 0; c < coeffs.cols; ++c) {
+
+				double squareSum = 0.0;
+
+				// Loop through the window for each pixel
+				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
+					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
+
+						// Check if the window is within the image boundaries
+						if (r + wr >= 0 &&
+							r + wr < coeffs.rows &&
+							c + wc >= 0 &&
+							c + wc < coeffs.cols) {
+
+							double value = coeffs.at<double>(r + wr, c + wc);
+							squareSum += value * value;
+						}
+					}
+				}
+
+				double& value = output.at<double>(r, c);
+				value *= std::max(1.0 - ((threshold * threshold) / squareSum), 0.0);
+			}
+		}
+	}
 	/**
 	* NeighShrink thresholding function.
 	*/
@@ -618,6 +428,133 @@ namespace CUDAWaveletThreshold {
 	}
 
 
+
+	/***************************************
+	* ModiNeighShrink thresholding function.
+	****************************************/
+
+	__global__ void applyModiNeighShrinkKernel(
+		const float* __restrict__ coeffs,
+		float* __restrict__ output,
+		int rows, int cols,
+		float threshold, int halfWindow
+	) {
+		int r = blockIdx.y * blockDim.y + threadIdx.y;
+		int c = blockIdx.x * blockDim.x + threadIdx.x;
+
+		if (r >= rows || c >= cols) {
+			return;
+		}
+
+		float squareSum = 0.0;
+
+		for (int wr = -halfWindow; wr <= halfWindow; wr++) {
+			for (int wc = -halfWindow; wc <= halfWindow; wc++) {
+				int rr = r + wr;
+				int cc = c + wc;
+
+				if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) {
+					float value = coeffs[rr * cols + cc];
+					squareSum += value * value;
+				}
+			}
+		}
+
+		float value = coeffs[r * cols + c];
+		float shrinkage = 1.0f - ((3.0f / 4.0f) * (threshold * threshold) / squareSum);
+
+		if (shrinkage < 0.0f) {
+			shrinkage = 0.0f;
+		}
+
+		output[r * cols + c] = value * shrinkage;
+	}
+
+	void applyModiNeighShrink(
+		cv::Mat& HL,
+		cv::Mat& LH,
+		cv::Mat& HH,
+		double threshold,
+		int windowSize
+	) {
+
+		int rows = HL.rows;
+		int cols = HL.cols;
+		int halfWindow = windowSize / 2;
+		int memory_size = sizeof(float) * rows * cols;
+
+		float* float_HL = (float*)HL.data;
+		float* float_LH = (float*)LH.data;
+		float* float_HH = (float*)HH.data;
+
+		float* gpu_HL, * gpu_LH, * gpu_HH;
+		CudaWrapper::malloc((void**)&gpu_HL, memory_size);
+		CudaWrapper::malloc((void**)&gpu_LH, memory_size);
+		CudaWrapper::malloc((void**)&gpu_HH, memory_size);
+
+		float* output_HL_data, * output_LH_data, * output_HH_data;
+		CudaWrapper::malloc((void**)&output_HL_data, memory_size);
+		CudaWrapper::malloc((void**)&output_LH_data, memory_size);
+		CudaWrapper::malloc((void**)&output_HH_data, memory_size);
+
+		dim3 block_size(BLOCK_SIZE, BLOCK_SIZE);
+		dim3 grid_size((cols + BLOCK_SIZE - 1) / BLOCK_SIZE, (rows + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
+		std::cout << "grid: " << grid_size.x << "x" << grid_size.y << std::endl;
+		std::cout << "block: " << block_size.x << "x" << block_size.y << std::endl;
+
+		cudaStream_t stream1, stream2, stream3;
+		CudaWrapper::streamCreate(&stream1);
+		CudaWrapper::streamCreate(&stream2);
+		CudaWrapper::streamCreate(&stream3);
+
+		CudaWrapper::memcpy(gpu_HL, float_HL, memory_size, cudaMemcpyHostToDevice, stream1);
+		applyModiNeighShrinkKernel << <grid_size, block_size, 0, stream1 >> > (
+			gpu_HL, output_HL_data,
+			rows, cols,
+			(float)threshold,
+			halfWindow
+			);
+
+		CudaWrapper::memcpy(gpu_LH, float_LH, memory_size, cudaMemcpyHostToDevice, stream2);
+		applyModiNeighShrinkKernel << <grid_size, block_size, 0, stream2 >> > (
+			gpu_LH, output_LH_data,
+			rows, cols,
+			(float)threshold,
+			halfWindow
+			);
+
+		CudaWrapper::memcpy(gpu_HH, float_HH, memory_size, cudaMemcpyHostToDevice, stream3);
+		applyModiNeighShrinkKernel << <grid_size, block_size, 0, stream3 >> > (
+			gpu_HH, output_HH_data,
+			rows, cols,
+			(float)threshold,
+			halfWindow
+			);
+
+		CudaWrapper::memcpy(float_HL, output_HL_data, memory_size, cudaMemcpyDeviceToHost, stream1);
+		CudaWrapper::memcpy(float_LH, output_LH_data, memory_size, cudaMemcpyDeviceToHost, stream2);
+		CudaWrapper::memcpy(float_HH, output_HH_data, memory_size, cudaMemcpyDeviceToHost, stream3);
+
+		CudaWrapper::streamSynchronize(stream1);
+		CudaWrapper::streamSynchronize(stream2);
+		CudaWrapper::streamSynchronize(stream3);
+
+
+		// Free memory
+		CudaWrapper::free(output_HL_data);
+		CudaWrapper::free(output_LH_data);
+		CudaWrapper::free(output_HH_data);
+
+		CudaWrapper::free(gpu_HL);
+		CudaWrapper::free(gpu_LH);
+		CudaWrapper::free(gpu_HH);
+
+		CudaWrapper::streamDestroy(stream1);
+		CudaWrapper::streamDestroy(stream2);
+		CudaWrapper::streamDestroy(stream3);
+	}
+
 	/**
 	* ModiNeighShrink thresholding function.
 	*/
@@ -672,76 +609,218 @@ namespace CUDAWaveletThreshold {
 		for (int i = 1; i <= level; ++i) {
 
 			std::cout << "Performing NeighShrink level: " << i << std::endl;
-
 			//LH
-			cv::Mat lhCoeffs = dwtOutput(
-				cv::Rect(
-					0,
-					rows >> i,
-					cols >> i,
-					rows >> i
-				)
+			cv::Rect lhRoi(
+				0,
+				rows >> i,
+				cols >> i,
+				rows >> i
 			);
-
-			cv::Mat lhOutput = output(
-				cv::Rect(
-					0,
-					rows >> i,
-					cols >> i,
-					rows >> i
-				)
-			);
+			cv::Mat lhOutput = output(lhRoi).clone();
 
 			//HL
-			cv::Mat hlCoeffs = dwtOutput(
-				cv::Rect(
-					cols >> i,
-					0,
-					cols >> i,
-					rows >> i
-				)
+			cv::Rect hlRoi(
+				cols >> i,
+				0,
+				cols >> i,
+				rows >> i
 			);
-
-			cv::Mat hlOutput = output(
-				cv::Rect(
-					cols >> i,
-					0,
-					cols >> i,
-					rows >> i
-				)
-			);
+			cv::Mat hlOutput = output(hlRoi).clone();
 
 			//HH
-			cv::Mat hhCoeffs = dwtOutput(
-				cv::Rect(
-					cols >> i,
-					rows >> i,
-					cols >> i,
-					rows >> i
-				)
+			cv::Rect hhRoi(
+				cols >> i,
+				rows >> i,
+				cols >> i,
+				rows >> i
+			);
+			cv::Mat hhOutput = output(hhRoi).clone();
+
+			applyModiNeighShrink(
+				lhOutput,
+				hlOutput,
+				hhOutput,
+				threshold, windowSize
 			);
 
-			cv::Mat hhOutput = output(
-				cv::Rect(
-					cols >> i,
-					rows >> i,
-					cols >> i,
-					rows >> i
-				)
-			);
+			//applyModiNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
+			//applyModiNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
+			//applyModiNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
 
-			applyModiNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
-			applyModiNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
-			applyModiNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
+			lhOutput.copyTo(output(lhRoi));
+			hlOutput.copyTo(output(hlRoi));
+			hhOutput.copyTo(output(hhRoi));
 		}
 
 		/*
 			4. Apply inverse wavelet transform to the output image
 		*/
+
 		CUDAHaarWavelet::idwt(output, output, level); // idwt
 	}
 
 
+	/************************************
+	* BayesShrink thresholding function.
+	*************************************/
+
+	__global__ void sumOfSquaresKernel(const float* input, float* output, int size) {
+		__shared__ float shared_mem[BLOCK_SIZE * BLOCK_SIZE];
+
+		int tid = threadIdx.x;
+		int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+		// Initialize shared memory
+		shared_mem[tid] = (idx < size) ? input[idx] * input[idx] : 0.0f;
+
+		__syncthreads();
+
+		// Perform reduction in shared memory
+		for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+			if (tid < stride) {
+				shared_mem[tid] += shared_mem[tid + stride]; // Accumulate the sum
+			}
+			__syncthreads();
+		}
+
+		// Write the result of this block to the output
+		if (tid == 0) {
+			output[blockIdx.x] = shared_mem[0];
+		}
+	}
+
+	__global__ void applyBayesShrinkKernel(
+		float* __restrict__ coeffs, float threshold,
+		int rows, int cols, int mode
+	) {
+		int r = blockIdx.y * blockDim.y + threadIdx.y;
+		int c = blockIdx.x * blockDim.x + threadIdx.x;
+
+		if (r >= rows || c >= cols) {
+			return;
+		}
+
+		int idx = r * cols + c;
+
+		coeffs[idx] = thresholdFunction(coeffs[idx], threshold, mode);
+	}
+
+	void applyBayesShrink(
+		cv::Mat& HL,
+		double threshold_HL,
+		cv::Mat& LH,
+		double threshold_LH,
+		cv::Mat& HH,
+		double threshold_HH,
+		CUDAThresholdMode mode
+	) {
+
+		int memorySize = sizeof(float) * HL.rows * HL.cols;
+
+		float* float_HL = (float*)HL.data;
+		float* float_LH = (float*)LH.data;
+		float* float_HH = (float*)HH.data;
+
+		float* gpu_HL;
+		CudaWrapper::malloc((void**)&gpu_HL, memorySize);
+		float* gpu_LH;
+		CudaWrapper::malloc((void**)&gpu_LH, memorySize);
+		float* gpu_HH;
+		CudaWrapper::malloc((void**)&gpu_HH, memorySize);
+
+		cudaStream_t stream1, stream2, stream3;
+		CudaWrapper::streamCreate(&stream1);
+		CudaWrapper::streamCreate(&stream2);
+		CudaWrapper::streamCreate(&stream3);
+
+		dim3 block(BLOCK_SIZE, BLOCK_SIZE);
+		dim3 grid((HL.cols + BLOCK_SIZE - 1) / BLOCK_SIZE, (HL.rows + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
+		CudaWrapper::memcpy(gpu_HL, float_HL, memorySize, cudaMemcpyHostToDevice, stream1);
+		applyBayesShrinkKernel << <grid, block, 0, stream1 >> > (
+			gpu_HL, (float)threshold_HL,
+			HL.rows, HL.cols, (int)mode
+			);
+
+		CudaWrapper::memcpy(gpu_LH, float_LH, memorySize, cudaMemcpyHostToDevice, stream2);
+		applyBayesShrinkKernel << <grid, block, 0, stream2 >> > (
+			gpu_LH, (float)threshold_LH,
+			LH.rows, LH.cols, (int)mode
+			);
+
+		CudaWrapper::memcpy(gpu_HH, float_HH, memorySize, cudaMemcpyHostToDevice, stream3);
+		applyBayesShrinkKernel << <grid, block, 0, stream3 >> > (
+			gpu_HH, (float)threshold_HH,
+			HH.rows, HH.cols, (int)mode
+			);
+
+		CudaWrapper::memcpy(float_HL, gpu_HL, memorySize, cudaMemcpyDeviceToHost, stream1);
+		CudaWrapper::memcpy(float_LH, gpu_LH, memorySize, cudaMemcpyDeviceToHost, stream2);
+		CudaWrapper::memcpy(float_HH, gpu_HH, memorySize, cudaMemcpyDeviceToHost, stream3);
+
+		CudaWrapper::streamSynchronize(stream1);
+		CudaWrapper::streamSynchronize(stream2);
+		CudaWrapper::streamSynchronize(stream3);
+
+		CudaWrapper::free(gpu_HL);
+		CudaWrapper::free(gpu_LH);
+		CudaWrapper::free(gpu_HH);
+
+		CudaWrapper::streamDestroy(stream1);
+		CudaWrapper::streamDestroy(stream2);
+		CudaWrapper::streamDestroy(stream3);
+	}
+
+	double calculateBayesThreshold(
+		const cv::Mat& coeffs,
+		double sigmaNoise
+	) {
+		assert(coeffs.type() == CV_32F);
+		assert(coeffs.isContinuous());
+
+		int img_size = coeffs.rows * coeffs.cols;
+		int memory_size = sizeof(float) * img_size;
+
+		dim3 block_size(BLOCK_SIZE * BLOCK_SIZE);
+		int sharedMemSize = block_size.x * sizeof(float);
+		dim3 grid_size((img_size + block_size.x - 1) / block_size.x);
+
+		float* gpu_input;
+		CudaWrapper::malloc((void**)&gpu_input, memory_size);
+		float* gpu_totalVar;
+		CudaWrapper::malloc((void**)&gpu_totalVar, grid_size.x * sizeof(float));
+
+		float* input_data = (float*)coeffs.data;
+		float* partialSum;
+		CudaWrapper::hostAllocate((void**)&partialSum, grid_size.x * sizeof(float), cudaHostAllocDefault);
+
+		CudaWrapper::memcpy(gpu_input, input_data, memory_size, cudaMemcpyHostToDevice);
+
+		sumOfSquaresKernel << <grid_size, block_size, sharedMemSize >> > (
+			gpu_input,
+			gpu_totalVar,
+			img_size
+			);
+
+		CudaWrapper::memcpy(partialSum, gpu_totalVar, grid_size.x * sizeof(float), cudaMemcpyDeviceToHost);
+
+		float totalVar = 0;
+		for (int i = 0; i < grid_size.x; i++) {
+			totalVar += partialSum[i];
+		}
+		totalVar /= img_size;
+		//double partialSum = cv::mean(coeffs.mul(coeffs))[0]; // Total variance
+
+		double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoise * sigmaNoise, 0.0)); // Signal standard deviation
+		double threshold = sigmaNoise * sigmaNoise / sigmaSignal; // BayesShrink threshold
+
+		CudaWrapper::hostFree(partialSum);
+
+		CudaWrapper::free(gpu_input);
+		CudaWrapper::free(gpu_totalVar);
+
+		return threshold;
+	}
 
 	/**
 	* BayesShrink thresholding function.
