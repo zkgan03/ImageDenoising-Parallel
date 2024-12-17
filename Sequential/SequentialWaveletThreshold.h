@@ -13,6 +13,7 @@ namespace SequentialWaveletThreshold {
 
 	/**
 	* @brief Perform VisuShrink thresholding on the input image.
+	* 
 	*
 	* This function performs VisuShrink thresholding on the input image.
 	*

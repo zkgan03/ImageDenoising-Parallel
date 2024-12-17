@@ -1,8 +1,8 @@
 #pragma once
 
-#include "CUDAWaveletThreshold.h"
+#include "CUDAWaveletThreshold.cuh"
 
-namespace CUDA
+namespace _CUDA_
 {
 	void TestFunctionCUDA(cv::Mat& input);
 }

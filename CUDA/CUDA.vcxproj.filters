@@ -15,25 +15,33 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CUDA.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CUDAHaarWavelet.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CUDAWaveletThreshold.cpp">
+    <ClCompile Include="_CUDA_.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CUDAHaarWavelet.h">
+    <ClInclude Include="CUDAHaarWavelet.cuh">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CUDAWaveletThreshold.h">
+    <ClInclude Include="CUDAWaveletThreshold.cuh">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CUDA.h">
+    <ClInclude Include="_CUDA_.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CudaWrapper.cuh">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="CudaWrapper.cu">
+      <Filter>Source Files</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CUDAHaarWavelet.cu">
+      <Filter>Source Files</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CUDAWaveletThreshold.cu">
+      <Filter>Source Files</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>

@@ -1,8 +1,7 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
-#include "CUDA.h"
 
-namespace CUDA
+namespace _CUDA_
 {
 	void TestFunctionCUDA(cv::Mat& input)
 	{

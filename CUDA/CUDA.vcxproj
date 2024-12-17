@@ -83,9 +83,11 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>$(IncludePath)</IncludePath>
+    <TargetName>_$(ProjectName)_</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>$(IncludePath)</IncludePath>
+    <TargetName>_$(ProjectName)_</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -152,14 +154,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CUDA.cpp" />
-    <ClCompile Include="CUDAHaarWavelet.cpp" />
-    <ClCompile Include="CUDAWaveletThreshold.cpp" />
+    <ClCompile Include="_CUDA_.cpp" />
+    <CudaCompile Include="CUDAHaarWavelet.cu">
+      <FileType>Document</FileType>
+    </CudaCompile>
+    <CudaCompile Include="CUDAWaveletThreshold.cu">
+      <FileType>Document</FileType>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CUDAHaarWavelet.h" />
-    <ClInclude Include="CUDA.h" />
-    <ClInclude Include="CUDAWaveletThreshold.h" />
+    <ClInclude Include="CUDAHaarWavelet.cuh" />
+    <ClInclude Include="_CUDA_.h" />
+    <ClInclude Include="CUDAWaveletThreshold.cuh" />
+    <ClInclude Include="CudaWrapper.cuh" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="CudaWrapper.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

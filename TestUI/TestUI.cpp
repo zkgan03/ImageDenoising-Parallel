@@ -4,13 +4,16 @@
 #include <omp.h>
 
 #include "OpenMP.h"
-#include "CUDA.h"
+#include "_CUDA_.h"
 #include "Sequential.h"
+#include <omp.h>
 
 #define IDC_BUTTON_OPEN 101 // id for the open button
 #define IDC_COMBO_METHOD 102 // id for the method combo box
 #define IDC_BUTTON_DENOISE 103 // id for the denoise button
 #define IDC_COMBO_SHRINKAGE 104 // id for the shrinkage combo box
+#define IDC_COMBO_IMAGE_TYPE 105 // id for the image type combo box
+
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void add_gaussian_noise(cv::Mat& image, double mean = 0.0, double stddev = 10.0);
@@ -21,6 +24,8 @@ cv::Mat originalImage, noisyImage, denoisedImage;
 std::wstring imagePath;
 int selectedMethod = 0;
 int selectedShrinkage = 0;
+int selectedImageType = 0; // 0 for BGR, 1 for Gray scale
+double executionTime = 0.0;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	const wchar_t CLASS_NAME[] = L"Sample Window Class";
@@ -65,34 +70,37 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 	case WM_CREATE: {
 		// Create controls
 
-		// Create buttons
+		// Create combo box for image type
+		CreateWindow(L"COMBOBOX", NULL, CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
+			10, 10, 150, 100, hwnd, (HMENU)IDC_COMBO_IMAGE_TYPE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create Open Image button
 		CreateWindow(L"BUTTON", L"Open Image", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-			10, 10, 100, 30, hwnd, (HMENU)IDC_BUTTON_OPEN, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
-
-		// Create input field for number of levels
-		CreateWindow(L"STATIC", L"Levels:", WS_VISIBLE | WS_CHILD,
-			10, 50, 100, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
-		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
-			120, 50, 50, 20, hwnd, (HMENU)200, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
-
-		// Create input field for window size
-		CreateWindow(L"STATIC", L"Window Size:", WS_VISIBLE | WS_CHILD,
-			10, 80, 100, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
-		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
-			120, 80, 50, 20, hwnd, (HMENU)201, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
-
+			170, 10, 100, 30, hwnd, (HMENU)IDC_BUTTON_OPEN, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
 		// Create combo box for methods
 		CreateWindow(L"COMBOBOX", NULL, CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
-			120, 10, 150, 100, hwnd, (HMENU)IDC_COMBO_METHOD, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+			10, 50, 150, 100, hwnd, (HMENU)IDC_COMBO_METHOD, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
 		// Create combo box for shrinkage methods
 		CreateWindow(L"COMBOBOX", NULL, CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
-			280, 10, 150, 100, hwnd, (HMENU)IDC_COMBO_SHRINKAGE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+			170, 50, 150, 100, hwnd, (HMENU)IDC_COMBO_SHRINKAGE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
-		// Create button
+		// Create input field for number of levels
+		CreateWindow(L"STATIC", L"Levels:", WS_VISIBLE | WS_CHILD,
+			330, 50, 100, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
+			390, 50, 50, 20, hwnd, (HMENU)200, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create input field for window size
+		CreateWindow(L"STATIC", L"Window Size:", WS_VISIBLE | WS_CHILD,
+			450, 50, 100, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
+			540, 50, 50, 20, hwnd, (HMENU)201, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create Denoise button
 		CreateWindow(L"BUTTON", L"Denoise", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-			440, 10, 100, 30, hwnd, (HMENU)IDC_BUTTON_DENOISE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+			600, 50, 100, 30, hwnd, (HMENU)IDC_BUTTON_DENOISE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
 		// Add items to the combo box for methods
 		HWND hComboMethod = GetDlgItem(hwnd, IDC_COMBO_METHOD);
@@ -109,6 +117,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		SendMessage(hComboShrinkage, CB_ADDSTRING, 0, (LPARAM)L"ModiNeighShrink");
 		SendMessage(hComboShrinkage, CB_SETCURSEL, 0, 0);
 
+		// Add items to the combo box for image type
+		HWND hComboImageType = GetDlgItem(hwnd, IDC_COMBO_IMAGE_TYPE);
+		SendMessage(hComboImageType, CB_ADDSTRING, 0, (LPARAM)L"BGR");
+		SendMessage(hComboImageType, CB_ADDSTRING, 0, (LPARAM)L"Gray scale");
+		SendMessage(hComboImageType, CB_SETCURSEL, 0, 0);
+
 		break;
 	}
 	case WM_COMMAND: {
@@ -121,10 +135,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			if (!imagePath.empty()) {
 				denoisedImage = NULL;
 
-				originalImage = cv::imread(
-					cv::String(imagePath.begin(), imagePath.end()),
-					cv::IMREAD_COLOR
-				);
+				HWND hComboImageType = GetDlgItem(hwnd, IDC_COMBO_IMAGE_TYPE);
+				selectedImageType = static_cast<int>(SendMessage(hComboImageType, CB_GETCURSEL, 0, 0));
+
+				if (selectedImageType == 1) {
+					originalImage = cv::imread(
+						cv::String(imagePath.begin(), imagePath.end()),
+						cv::IMREAD_GRAYSCALE
+					);
+				}
+				else {
+					originalImage = cv::imread(
+						cv::String(imagePath.begin(), imagePath.end()),
+						cv::IMREAD_COLOR
+					);
+				}
 
 				if (!originalImage.empty()) {
 					noisyImage = originalImage.clone();
@@ -166,10 +191,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			}
 
 			std::vector<cv::Mat> noisyImageChannels;
+
+			noisyImage.convertTo(noisyImage, CV_32F);
 			cv::split(noisyImage, noisyImageChannels);
+
 			std::vector<cv::Mat> denoisedImageChannels = std::vector<cv::Mat>(noisyImageChannels.size());
 
 			if (!noisyImage.empty()) {
+
+				double startTime = omp_get_wtime();
+
 				switch (selectedMethod) {
 				case 0: {
 					switch (selectedShrinkage) {
@@ -197,7 +228,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 					break;
 				}
 				case 1: {
-
 					switch (selectedShrinkage) {
 					case 0:
 						for (int i = 0; i < noisyImageChannels.size(); i++)
@@ -240,9 +270,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 					break;
 				}
 				}
+				double endTime = omp_get_wtime();
+				executionTime = endTime - startTime;
 
 				cv::merge(denoisedImageChannels, denoisedImage);
-				cv::normalize(denoisedImage, denoisedImage, 0, 255, cv::NORM_MINMAX, CV_8U);
+				cv::normalize(denoisedImage, denoisedImage, 0, 255, cv::NORM_MINMAX);
+				denoisedImage.convertTo(denoisedImage, CV_8UC3);
+				noisyImage.convertTo(noisyImage, CV_8UC3);
 
 				InvalidateRect(hwnd, NULL, TRUE);
 			}
@@ -265,6 +299,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		if (!denoisedImage.empty()) {
 			displayImage(hwnd, denoisedImage, 1030, 120, 500, 500);
 		}
+
+		// Display execution time
+		wchar_t timeBuffer[50];
+		swprintf(timeBuffer, 50, L"Execution Time: %.5f seconds", executionTime);
+		TextOut(hdc, 10, 630, timeBuffer, wcslen(timeBuffer));
 
 		EndPaint(hwnd, &ps);
 
