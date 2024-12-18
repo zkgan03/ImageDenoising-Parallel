@@ -3,16 +3,23 @@
 #include "Combined.h"
 
 void init_mats(
-	const unsigned char* input_data, int input_rows, int input_cols, int input_data_type, int n_channels, 
+	const unsigned char* input_data, int input_rows, int input_cols, int input_data_type, int n_channels,
 	unsigned char* output_data,
-	cv::Mat& input, cv::Mat& output, 
+	cv::Mat& input, cv::Mat& output,
 	std::vector<cv::Mat>& input_channels, std::vector<cv::Mat>& output_channels
 ) {
-
-	input = cv::Mat(input_rows, input_cols, input_data_type, (void*)input_data);
-
-	if (input.type() != CV_32F)
+	// Initialize input and output matrices
+	input = cv::Mat(input_rows, input_cols, CV_MAKETYPE(input_data_type, n_channels), (void*)input_data);
+	if (n_channels > 1) {
+		std::cout << "Converting input to 32FC3" << std::endl;
+		input.convertTo(input, CV_32FC3); // Convert to float for processing
+	}
+	else {
+		std::cout << "Converting input to 32F" << std::endl;
 		input.convertTo(input, CV_32F); // Convert to float for processing
+	}
+
+	std::cout << "input channels: " << input.channels() << std::endl;
 
 	input_channels = std::vector<cv::Mat>(n_channels);
 	cv::split(input, input_channels);
@@ -59,11 +66,18 @@ void cuda_bayesShrink(const unsigned char* input_data, int input_data_type, int 
 
 	init_mats(input_data, input_rows, input_cols, input_data_type, n_channels, output_data, input, output, input_channels, output_channels);
 
-	for (int i = 0; i < n_channels; i++) {
+	std::cout << "Input channels: " << input_channels.size() << std::endl;
+	std::cout << "Output channels: " << output_channels.size() << std::endl;
+
+	for (int i = 0; i < input_channels.size(); i++) {
 		CUDAWaveletThreshold::bayesShrink(input_channels[i], output_channels[i], level);
 	}
 
+	std::cout << "Combining output channels" << std::endl;
 	cv::merge(output_channels, output);
+
+	std::cout << "Converting output to 8U" << std::endl;
+
 	if (n_channels == 1)
 		output.convertTo(output, CV_8U);
 	else
