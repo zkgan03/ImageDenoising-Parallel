@@ -13,6 +13,181 @@
 */
 namespace SequentialWaveletThreshold {
 
+	float soft_shrink(float d, float threshold)
+	{
+		return std::abs(d) > threshold ? std::copysign(std::abs(d) - threshold, d) : 0.0;
+	}
+
+	float hard_shrink(float x, float threshold)
+	{
+		return std::abs(x) > threshold ? x : 0.0;
+	}
+
+	float garrot_shrink(float x, float threshold)
+	{
+		return std::abs(x) > threshold ? x - ((threshold * threshold) / x) : 0.0;
+	}
+
+	double calculateSigma(
+		cv::Mat& coeffs
+	) {
+		// Flatten the high-frequency coefficients
+		std::vector<double> coefficients;
+		for (int i = 0; i < coeffs.rows; ++i) {
+			for (int j = 0; j < coeffs.cols; ++j) {
+				coefficients.push_back(std::abs(coeffs.at<double>(i, j)));
+			}
+		}
+
+		// Calculate Median Absolute Deviation (MAD)
+		std::nth_element(coefficients.begin(), coefficients.begin() + coefficients.size() / 2, coefficients.end());
+
+		double median = coefficients[coefficients.size() / 2];
+
+		double sigma = median / 0.6745; // Estimate noise standard deviation
+
+		return sigma;
+	}
+
+	double calculateUniversalThreshold(
+		cv::Mat& highFreqBand
+	) {
+
+		double sigma = calculateSigma(highFreqBand); // Estimate noise standard deviation
+
+		double threshold = sigma * sqrt(2 * std::log(highFreqBand.rows * highFreqBand.cols));
+
+		return threshold;
+	}
+
+
+	
+
+	float sign(float x)
+	{
+		float res = 0;
+		if (x == 0)
+		{
+			res = 0;
+		}
+		else if (x > 0)
+		{
+			res = 1;
+		}
+		else if (x < 0)
+		{
+			res = -1;
+		}
+		return res;
+	}
+
+
+	void applyNeighShrink(
+		const cv::Mat& coeffs,
+		cv::Mat& output,
+		double threshold,
+		int halfWindow
+	) {
+
+		for (int r = 0; r < coeffs.rows; ++r) {
+			for (int c = 0; c < coeffs.cols; ++c) {
+
+				double squareSum = 0.0;
+
+				// Loop through the window for each pixel
+				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
+					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
+
+						// Check if the window is within the image boundaries
+						if (r + wr >= 0 &&
+							r + wr < coeffs.rows &&
+							c + wc >= 0 &&
+							c + wc < coeffs.cols) {
+
+							double value = coeffs.at<double>(r + wr, c + wc);
+							squareSum += value * value;
+						}
+					}
+				}
+
+				double& value = output.at<double>(r, c);
+				value *= std::max(1.0 - ((threshold * threshold) / squareSum), 0.0);
+			}
+		}
+	}
+
+	void applyModiNeighShrink(
+		const cv::Mat& coeffs,
+		cv::Mat& output,
+		double threshold,
+		int halfWindow
+	) {
+
+		for (int r = 0; r < coeffs.rows; ++r) {
+			for (int c = 0; c < coeffs.cols; ++c) {
+
+				double squareSum = 0.0;
+
+				// Loop through the window for each pixel
+				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
+					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
+
+						// Check if the window is within the image boundaries
+						if (r + wr >= 0 &&
+							r + wr < coeffs.rows &&
+							c + wc >= 0 &&
+							c + wc < coeffs.cols) {
+
+							double value = coeffs.at<double>(r + wr, c + wc);
+							squareSum += value * value;
+						}
+					}
+				}
+
+				double& value = output.at<double>(r, c);
+				value *= std::max(1.0 - ((3.0 / 4.0) * (threshold * threshold) / squareSum), 0.0);
+			}
+		}
+	}
+
+
+	void applyBayesShrink(
+		cv::Mat& coeffs,
+		double sigmaNoise,
+		SequentialThresholdMode mode
+	) {
+
+		// Select the thresholding function
+		float (*thresholdFunction)(float x, float threshold) = soft_shrink;;
+		switch (mode) {
+		case SequentialThresholdMode::HARD:
+			thresholdFunction = hard_shrink;
+			break;
+		case SequentialThresholdMode::SOFT:
+			thresholdFunction = soft_shrink;
+			break;
+		case SequentialThresholdMode::GARROTE:
+			thresholdFunction = garrot_shrink;
+			break;
+		}
+
+		double totalVar = cv::mean(coeffs.mul(coeffs))[0]; // Total variance
+		double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoise * sigmaNoise, 0.0)); // Signal standard deviation
+		double threshold = sigmaNoise * sigmaNoise / sigmaSignal; // BayesShrink threshold
+
+		for (int r = 0; r < coeffs.rows; ++r) {
+			for (int c = 0; c < coeffs.cols; ++c) {
+
+				double value = coeffs.at<double>(r, c);
+
+				coeffs.at<double>(r, c) = thresholdFunction(value, threshold);
+			}
+		}
+	}
+
+
+
+
 	void visuShrink(
 		const cv::Mat& input,
 		cv::Mat& output,
@@ -242,7 +417,7 @@ namespace SequentialWaveletThreshold {
 		/*
 			4. Apply inverse wavelet transform to the output image
 		*/
-		
+
 		SequentialHaarWavelet::idwt(output, output, level); // idwt
 	}
 
@@ -369,8 +544,8 @@ namespace SequentialWaveletThreshold {
 	}
 
 	/**
-* BayesShrink thresholding function.
-*/
+	* BayesShrink thresholding function.
+	*/
 	void bayesShrink(
 		const cv::Mat& input,
 		cv::Mat& output,
@@ -453,175 +628,4 @@ namespace SequentialWaveletThreshold {
 		SequentialHaarWavelet::idwt(output, output, level); // idwt
 	}
 
-	namespace {
-		void applyNeighShrink(
-			const cv::Mat& coeffs,
-			cv::Mat& output,
-			double threshold,
-			int halfWindow
-		) {
-
-			for (int r = 0; r < coeffs.rows; ++r) {
-				for (int c = 0; c < coeffs.cols; ++c) {
-
-					double squareSum = 0.0;
-
-					// Loop through the window for each pixel
-					for (int wr = -halfWindow; wr <= halfWindow; wr++) {
-						for (int wc = -halfWindow; wc <= halfWindow; wc++) {
-
-							// Check if the window is within the image boundaries
-							if (r + wr >= 0 &&
-								r + wr < coeffs.rows &&
-								c + wc >= 0 &&
-								c + wc < coeffs.cols) {
-
-								double value = coeffs.at<double>(r + wr, c + wc);
-								squareSum += value * value;
-							}
-						}
-					}
-
-					double& value = output.at<double>(r, c);
-					value *= std::max(1.0 - ((threshold * threshold) / squareSum), 0.0);
-				}
-			}
-		}
-
-		void applyModiNeighShrink(
-			const cv::Mat& coeffs,
-			cv::Mat& output,
-			double threshold,
-			int halfWindow
-		) {
-
-			for (int r = 0; r < coeffs.rows; ++r) {
-				for (int c = 0; c < coeffs.cols; ++c) {
-
-					double squareSum = 0.0;
-
-					// Loop through the window for each pixel
-					for (int wr = -halfWindow; wr <= halfWindow; wr++) {
-						for (int wc = -halfWindow; wc <= halfWindow; wc++) {
-
-							// Check if the window is within the image boundaries
-							if (r + wr >= 0 &&
-								r + wr < coeffs.rows &&
-								c + wc >= 0 &&
-								c + wc < coeffs.cols) {
-
-								double value = coeffs.at<double>(r + wr, c + wc);
-								squareSum += value * value;
-							}
-						}
-					}
-
-					double& value = output.at<double>(r, c);
-					value *= std::max(1.0 - ((3.0 / 4.0) * (threshold * threshold) / squareSum), 0.0);
-				}
-			}
-		}
-
-
-		void applyBayesShrink(
-			cv::Mat& coeffs,
-			double sigmaNoise,
-			SequentialThresholdMode mode
-		) {
-
-			// Select the thresholding function
-			float (*thresholdFunction)(float x, float threshold) = soft_shrink;;
-			switch (mode) {
-			case SequentialThresholdMode::HARD:
-				thresholdFunction = hard_shrink;
-				break;
-			case SequentialThresholdMode::SOFT:
-				thresholdFunction = soft_shrink;
-				break;
-			case SequentialThresholdMode::GARROTE:
-				thresholdFunction = garrot_shrink;
-				break;
-			}
-
-			double totalVar = cv::mean(coeffs.mul(coeffs))[0]; // Total variance
-			double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoise * sigmaNoise, 0.0)); // Signal standard deviation
-			double threshold = sigmaNoise * sigmaNoise / sigmaSignal; // BayesShrink threshold
-
-			for (int r = 0; r < coeffs.rows; ++r) {
-				for (int c = 0; c < coeffs.cols; ++c) {
-
-					double value = coeffs.at<double>(r, c);
-
-					coeffs.at<double>(r, c) = thresholdFunction(value, threshold);
-				}
-			}
-		}
-
-
-		double calculateUniversalThreshold(
-			cv::Mat& highFreqBand
-		) {
-
-			double sigma = calculateSigma(highFreqBand); // Estimate noise standard deviation
-
-			double threshold = sigma * sqrt(2 * std::log(highFreqBand.rows * highFreqBand.cols));
-
-			return threshold;
-		}
-
-
-		double calculateSigma(
-			cv::Mat& coeffs
-		) {
-			// Flatten the high-frequency coefficients
-			std::vector<double> coefficients;
-			for (int i = 0; i < coeffs.rows; ++i) {
-				for (int j = 0; j < coeffs.cols; ++j) {
-					coefficients.push_back(std::abs(coeffs.at<double>(i, j)));
-				}
-			}
-
-			// Calculate Median Absolute Deviation (MAD)
-			std::nth_element(coefficients.begin(), coefficients.begin() + coefficients.size() / 2, coefficients.end());
-
-			double median = coefficients[coefficients.size() / 2];
-
-			double sigma = median / 0.6745; // Estimate noise standard deviation
-
-			return sigma;
-		}
-
-		float sign(float x)
-		{
-			float res = 0;
-			if (x == 0)
-			{
-				res = 0;
-			}
-			else if (x > 0)
-			{
-				res = 1;
-			}
-			else if (x < 0)
-			{
-				res = -1;
-			}
-			return res;
-		}
-
-		float soft_shrink(float d, float threshold)
-		{
-			return std::abs(d) > threshold ? std::copysign(std::abs(d) - threshold, d) : 0.0;
-		}
-
-		float hard_shrink(float x, float threshold)
-		{
-			return std::abs(x) > threshold ? x : 0.0;
-		}
-
-		float garrot_shrink(float x, float threshold)
-		{
-			return std::abs(x) > threshold ? x - ((threshold * threshold) / x) : 0.0;
-		}
-	}
 }

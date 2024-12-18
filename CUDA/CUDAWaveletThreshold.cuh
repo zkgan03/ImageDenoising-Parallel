@@ -2,15 +2,13 @@
 
 #include <opencv2/core.hpp>
 
+enum class CUDAThresholdMode {
+	HARD,
+	SOFT,
+	GARROTE,
+};
 
 namespace CUDAWaveletThreshold {
-
-	enum class CUDAThresholdMode {
-		HARD,
-		SOFT,
-		GARROTE,
-	};
-
 
 	/**
 	* @brief Perform VisuShrink thresholding on the input image.

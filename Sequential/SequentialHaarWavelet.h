@@ -26,8 +26,5 @@ namespace SequentialHaarWavelet
 	 */
 	void idwt(const cv::Mat& input, cv::Mat& output, int nIteration);
 
-	void dwt_improved(const cv::Mat& input, cv::Mat& output, int nIteration);
-	void idwt_improved(const cv::Mat& input, cv::Mat& output, int nIteration);
-
 };
 
