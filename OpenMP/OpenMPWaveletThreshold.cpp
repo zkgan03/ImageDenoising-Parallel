@@ -468,14 +468,14 @@ namespace OpenMPWaveletThreshold {
 		std::cout << "Threshold: " << threshold << std::endl;
 
 		/*
-			3. Apply NeighShrink thresholding
+			3. Apply ModiNeighShrink thresholding
 		*/
-		// Apply NeighShrink thresholding
+		// Apply ModiNeighShrink thresholding
 		// Loop through each level of the wavelet decomposition
 		output = dwtOutput.clone();
 		for (int i = 1; i <= level; ++i) {
 
-			std::cout << "Performing NeighShrink level: " << i << std::endl;
+			std::cout << "Performing ModiNeighShrink level: " << i << std::endl;
 
 			//LH
 			cv::Mat lhCoeffs = dwtOutput(
