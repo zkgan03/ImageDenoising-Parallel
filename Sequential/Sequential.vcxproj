@@ -156,12 +156,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="SequentialHaarWavelet.cpp" />
-    <ClCompile Include="Sequential.cpp" />
     <ClCompile Include="SequentialWaveletThreshold.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="SequentialHaarWavelet.h" />
     <ClInclude Include="Sequential.h" />
+    <ClInclude Include="SequentialHaarWavelet.h" />
     <ClInclude Include="SequentialWaveletThreshold.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

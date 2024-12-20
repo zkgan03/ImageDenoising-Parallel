@@ -160,7 +160,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="OpenMPHaarWavelet.cpp" />
-    <ClCompile Include="OpenMP.cpp" />
     <ClCompile Include="OpenMPWaveletThreshold.cpp" />
   </ItemGroup>
   <ItemGroup>
