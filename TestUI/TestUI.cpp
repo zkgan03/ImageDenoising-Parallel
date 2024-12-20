@@ -13,6 +13,8 @@
 #define IDC_BUTTON_DENOISE 103 // id for the denoise button
 #define IDC_COMBO_SHRINKAGE 104 // id for the shrinkage combo box
 #define IDC_COMBO_IMAGE_TYPE 105 // id for the image type combo box
+#define IDC_BUTTON_ADD_NOISE 106 // id for the add noise button
+#define IDC_BUTTON_SAVE 107 // id for the save button
 
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -98,9 +100,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
 			540, 50, 50, 20, hwnd, (HMENU)201, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
+		// Create Add Noise button
+		CreateWindow(L"BUTTON", L"Add Noise", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			600, 10, 100, 30, hwnd, (HMENU)IDC_BUTTON_ADD_NOISE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
 		// Create Denoise button
 		CreateWindow(L"BUTTON", L"Denoise", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
 			600, 50, 100, 30, hwnd, (HMENU)IDC_BUTTON_DENOISE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create Save Image button (initially hidden)
+		CreateWindow(L"BUTTON", L"Save Image", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			710, 50, 100, 30, hwnd, (HMENU)IDC_BUTTON_SAVE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
 
 		// Add items to the combo box for methods
 		HWND hComboMethod = GetDlgItem(hwnd, IDC_COMBO_METHOD);
@@ -132,35 +143,86 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		if (LOWORD(wParam) == IDC_BUTTON_OPEN) {
 			openFileDialog(hwnd, imagePath);
 
-			if (!imagePath.empty()) {
-				denoisedImage = NULL;
-
-				HWND hComboImageType = GetDlgItem(hwnd, IDC_COMBO_IMAGE_TYPE);
-				selectedImageType = static_cast<int>(SendMessage(hComboImageType, CB_GETCURSEL, 0, 0));
-
-				if (selectedImageType == 1) {
-					originalImage = cv::imread(
-						cv::String(imagePath.begin(), imagePath.end()),
-						cv::IMREAD_GRAYSCALE
-					);
-				}
-				else {
-					originalImage = cv::imread(
-						cv::String(imagePath.begin(), imagePath.end()),
-						cv::IMREAD_COLOR
-					);
-				}
-
-				if (!originalImage.empty()) {
-					noisyImage = originalImage.clone();
-					add_gaussian_noise(noisyImage, 32, 50);
-					InvalidateRect(hwnd, NULL, TRUE);
-				}
+			if (imagePath.empty()) {
+				MessageBox(hwnd, L"Failed to open image", L"Error", MB_OK);
+				return 0;
 			}
+
+			denoisedImage.release();
+
+			HWND hComboImageType = GetDlgItem(hwnd, IDC_COMBO_IMAGE_TYPE);
+			selectedImageType = static_cast<int>(SendMessage(hComboImageType, CB_GETCURSEL, 0, 0));
+
+			if (selectedImageType == 1) {
+				originalImage = cv::imread(
+					cv::String(imagePath.begin(), imagePath.end()),
+					cv::IMREAD_GRAYSCALE
+				);
+			}
+			else {
+				originalImage = cv::imread(
+					cv::String(imagePath.begin(), imagePath.end()),
+					cv::IMREAD_COLOR
+				);
+			}
+
+			if (originalImage.empty()) {
+				MessageBox(hwnd, L"Failed to open image", L"Error", MB_OK);
+				return 0;
+
+			}
+
+			noisyImage = originalImage.clone();
+			InvalidateRect(hwnd, NULL, TRUE);
+		}
+
+		// Add Noise button
+		else if (LOWORD(wParam) == IDC_BUTTON_ADD_NOISE) {
+			if (!originalImage.empty()) {
+				add_gaussian_noise(noisyImage, 32, 50);
+				InvalidateRect(hwnd, NULL, TRUE);
+			}
+			else {
+				MessageBox(hwnd, L"No image loaded", L"Error", MB_OK);
+			}
+		}
+
+		// Save Image button
+		else if (LOWORD(wParam) == IDC_BUTTON_SAVE) {
+
+			if (denoisedImage.empty()) {
+				MessageBox(hwnd, L"No denoised image to save", L"Error", MB_OK);
+				return 0;
+			}
+
+			OPENFILENAME ofn;
+			wchar_t szFile[260] = L"default_filename.jpg"; // Set default file name and extension
+
+			ZeroMemory(&ofn, sizeof(ofn));
+			ofn.lStructSize = sizeof(ofn);
+			ofn.hwndOwner = hwnd;
+			ofn.lpstrFile = szFile;
+			ofn.nMaxFile = sizeof(szFile);
+			ofn.lpstrFilter = L"JPEG\0*.JPG\0PNG\0*.PNG\0All\0*.*\0";
+			ofn.nFilterIndex = 1;
+			ofn.lpstrFileTitle = NULL;
+			ofn.nMaxFileTitle = 0;
+			ofn.lpstrInitialDir = NULL;
+			ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+			if (GetSaveFileName(&ofn) == TRUE) {
+				cv::imwrite(cv::String(ofn.lpstrFile, ofn.lpstrFile + wcslen(ofn.lpstrFile)), denoisedImage);
+			}
+
 		}
 
 		// Denoise button
 		else if (LOWORD(wParam) == IDC_BUTTON_DENOISE) {
+			if (noisyImage.empty()) {
+				MessageBox(hwnd, L"No image loaded", L"Error", MB_OK);
+				return 0;
+			}
+
 			HWND hComboMethod = GetDlgItem(hwnd, IDC_COMBO_METHOD);
 			selectedMethod = static_cast<int>(SendMessage(hComboMethod, CB_GETCURSEL, 0, 0));
 
@@ -299,6 +361,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		if (!denoisedImage.empty()) {
 			displayImage(hwnd, denoisedImage, 1030, 120, 500, 500);
 		}
+		else {
+			cv::Mat temp = cv::Mat::ones(1, 1, CV_8U)*255;
+			displayImage(hwnd, temp, 1030, 120, 500, 500);
+		}
 
 		// Display execution time
 		wchar_t timeBuffer[50];
@@ -333,7 +399,7 @@ void openFileDialog(HWND hwnd, std::wstring& filePath) {
 	ZeroMemory(&ofn, sizeof(ofn));
 	ofn.lStructSize = sizeof(ofn);
 	ofn.hwndOwner = hwnd;
-	ofn.lpstrFilter = L"All Files\0*.*\0";
+	ofn.lpstrFilter = L"Image Files\0*.BMP;*.JPG;*.JPEG;*.PNG;*.TIF;*.TIFF\0All Files\0*.*\0";
 	ofn.lpstrFile = filename;
 	ofn.nMaxFile = MAX_PATH;
 	ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
