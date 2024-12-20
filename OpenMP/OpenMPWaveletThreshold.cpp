@@ -467,30 +467,77 @@ void modineighShrink(
 				rows >> i
 			)
 		);
+		/*
+			3. Apply ModiNeighShrink thresholding
+		*/
+		// Apply ModiNeighShrink thresholding
+		// Loop through each level of the wavelet decomposition
+		output = dwtOutput.clone();
+		for (int i = 1; i <= level; ++i) {
 
-		//HH
-		cv::Mat hhCoeffs = dwtOutput(
-			cv::Rect(
-				cols >> i,
-				rows >> i,
-				cols >> i,
-				rows >> i
-			)
-		);
+			std::cout << "Performing ModiNeighShrink level: " << i << std::endl;
 
-		cv::Mat hhOutput = output(
-			cv::Rect(
-				cols >> i,
-				rows >> i,
-				cols >> i,
-				rows >> i
-			)
-		);
+			//LH
+			cv::Mat lhCoeffs = dwtOutput(
+				cv::Rect(
+					0,
+					rows >> i,
+					cols >> i,
+					rows >> i
+				)
+			);
 
-		applyModiNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
-		applyModiNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
-		applyModiNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
-	}
+			cv::Mat lhOutput = output(
+				cv::Rect(
+					0,
+					rows >> i,
+					cols >> i,
+					rows >> i
+				)
+			);
+
+			//HL
+			cv::Mat hlCoeffs = dwtOutput(
+				cv::Rect(
+					cols >> i,
+					0,
+					cols >> i,
+					rows >> i
+				)
+			);
+
+			cv::Mat hlOutput = output(
+				cv::Rect(
+					cols >> i,
+					0,
+					cols >> i,
+					rows >> i
+				)
+			);
+
+			//HH
+			cv::Mat hhCoeffs = dwtOutput(
+				cv::Rect(
+					cols >> i,
+					rows >> i,
+					cols >> i,
+					rows >> i
+				)
+			);
+
+			cv::Mat hhOutput = output(
+				cv::Rect(
+					cols >> i,
+					rows >> i,
+					cols >> i,
+					rows >> i
+				)
+			);
+
+			applyModiNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
+			applyModiNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
+			applyModiNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
+		}
 
 	/*
 		4. Apply inverse wavelet transform to the output image
