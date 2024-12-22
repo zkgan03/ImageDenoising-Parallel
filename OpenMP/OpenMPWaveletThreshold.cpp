@@ -2,6 +2,7 @@
 #include <opencv2/opencv.hpp>
 #include <omp.h>
 
+
 #include "OpenMPWaveletThreshold.h"
 #include "OpenMPHaarWavelet.h"
 
@@ -27,9 +28,8 @@ namespace OpenMPWaveletThreshold {
 	}
 
 
-	double calculateSigma(
-		cv::Mat& coeffs
-	) {
+
+	double calculateSigma(cv::Mat& coeffs) {
 		// Flatten the high-frequency coefficients
 		std::vector<double> coefficients;
 		for (int i = 0; i < coeffs.rows; ++i) {
@@ -86,30 +86,42 @@ namespace OpenMPWaveletThreshold {
 		const int cols = coeffs.cols;
 		const double thresholdSq = threshold * threshold;
 
-		// Use parallel processing for the outer loop
-#pragma omp parallel for schedule(dynamic)
-		for (int r = 0; r < rows; ++r) {
+		// Create a temporary buffer to avoid race conditions
+		cv::Mat tempOutput = output.clone();
+
+		// Use parallel processing with optimized chunk size
+		const int chunkSize = std::max(1, rows / (omp_get_max_threads() * 4));
+
+#pragma omp parallel
+		{
+			// Thread-local storage for window calculations
 			std::vector<double> windowValues((2 * halfWindow + 1) * (2 * halfWindow + 1));
 
-			for (int c = 0; c < cols; ++c) {
-				double squareSum = 0.0;
-				int windowSize = 0;
+#pragma omp for schedule(dynamic, chunkSize) nowait
+			for (int r = 0; r < rows; ++r) {
+				for (int c = 0; c < cols; ++c) {
+					double squareSum = 0.0;
+					int validCount = 0;
 
-				// Gather window values
-				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
-					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
-						if (r + wr >= 0 && r + wr < rows && c + wc >= 0 && c + wc < cols) {
-							double value = coeffs.at<double>(r + wr, c + wc);
+					// Calculate window sum using cache-friendly access pattern
+					for (int wr = std::max(0, r - halfWindow);
+						wr <= std::min(rows - 1, r + halfWindow); ++wr) {
+						for (int wc = std::max(0, c - halfWindow);
+							wc <= std::min(cols - 1, c + halfWindow); ++wc) {
+							double value = coeffs.at<double>(wr, wc);
 							squareSum += value * value;
-							windowSize++;
+							validCount++;
 						}
 					}
-				}
 
-				// Apply threshold
-				output.at<double>(r, c) *= std::max(1.0 - (thresholdSq / squareSum), 0.0);
+					// Apply threshold to temporary buffer
+					tempOutput.at<double>(r, c) *= std::max(1.0 - (thresholdSq / squareSum), 0.0);
+				}
 			}
 		}
+
+		// Copy back results
+		tempOutput.copyTo(output);
 	}
 
 
@@ -119,105 +131,52 @@ namespace OpenMPWaveletThreshold {
 		const double thresholdSq = threshold * threshold;
 		const double factor = 3.0 / 4.0;
 
-		// Pre-calculate window size for bounds checking
-		const int windowSize = 2 * halfWindow + 1;
+		// Create padded matrices to eliminate boundary checks
+		cv::Mat padded, tempOutput;
+		cv::copyMakeBorder(coeffs, padded, halfWindow, halfWindow,
+			halfWindow, halfWindow, cv::BORDER_CONSTANT, 0);
+		tempOutput = output.clone();
 
-		// Create a padded matrix to eliminate boundary checks
-		cv::Mat padded;
-		cv::copyMakeBorder(coeffs, padded, halfWindow, halfWindow, halfWindow, halfWindow, cv::BORDER_CONSTANT, 0);
+		const int chunkSize = std::max(1, rows / (omp_get_max_threads() * 4));
 
 #pragma omp parallel
 		{
-			// Allocate thread-local storage for window calculations
-			std::vector<double> windowValues(windowSize * windowSize);
+			// Thread-local storage
+			std::vector<double> windowCache((2 * halfWindow + 1) * (2 * halfWindow + 1));
 
-			// Process rows in parallel with dynamic scheduling
-#pragma omp for schedule(dynamic, 16)
+#pragma omp for schedule(dynamic, chunkSize) nowait
 			for (int r = 0; r < rows; ++r) {
 				for (int c = 0; c < cols; ++c) {
 					double squareSum = 0.0;
 
-					// Process window using padded matrix (no boundary checks needed)
-					for (int wr = 0; wr < windowSize; ++wr) {
-						const double* windowRow = padded.ptr<double>(r + wr);
-						for (int wc = 0; wc < windowSize; ++wc) {
-							double value = windowRow[c + wc];
+					// Use pre-calculated indices for faster access
+					const int startR = r;
+					const int startC = c;
+					const int endR = r + 2 * halfWindow + 1;
+					const int endC = c + 2 * halfWindow + 1;
+
+					// Efficient window processing using padded matrix
+					for (int wr = startR; wr < endR; ++wr) {
+						const double* windowRow = padded.ptr<double>(wr);
+						for (int wc = startC; wc < endC; ++wc) {
+							double value = windowRow[wc];
 							squareSum += value * value;
 						}
 					}
 
-					// Calculate shrinkage factor
-					double shrinkage = std::max(1.0 - (factor * thresholdSq / squareSum), 0.0);
-
-					// Apply shrinkage to output
-					output.at<double>(r, c) *= shrinkage;
+					// Calculate and apply shrinkage to temporary buffer
+					tempOutput.at<double>(r, c) *=
+						std::max(1.0 - (factor * thresholdSq / squareSum), 0.0);
 				}
 			}
 		}
+
+		// Copy results back
+		tempOutput.copyTo(output);
 	}
 
 	void applyBayesShrink(cv::Mat& coeffs, double sigmaNoise, OpenMPThresholdMode mode) {
-		// Select the thresholding function - done once outside parallel region
-		float (*thresholdFunction)(float x, float threshold) = soft_shrink;
-		switch (mode) {
-		case OpenMPThresholdMode::HARD:
-			thresholdFunction = hard_shrink;
-			break;
-		case OpenMPThresholdMode::SOFT:
-			thresholdFunction = soft_shrink;
-			break;
-		case OpenMPThresholdMode::GARROTE:
-			thresholdFunction = garrot_shrink;
-			break;
-		}
-
-		// Calculate threshold parameters outside parallel region
-		const double sigmaNoiseSq = sigmaNoise * sigmaNoise;
-		double totalVar = cv::mean(coeffs.mul(coeffs))[0]; // Total variance
-		double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoiseSq, 0.0)); // Signal standard deviation
-		const double threshold = sigmaNoiseSq / sigmaSignal; // BayesShrink threshold
-
-		// Get matrix data pointers for direct access
-		const int rows = coeffs.rows;
-		const int cols = coeffs.cols;
-		const size_t elemSize = sizeof(double);
-		const size_t step = coeffs.step / elemSize;
-
-		// Use OpenMP parallel processing with dynamic scheduling
-#pragma omp parallel
-		{
-			// Process rows in parallel with guided scheduling for better load balancing
-#pragma omp for schedule(guided)
-			for (int r = 0; r < rows; ++r) {
-				double* row_ptr = coeffs.ptr<double>(r);
-
-				// Process each element in the row
-				// Using a separate loop for columns allows better vectorization
-				for (int c = 0; c < cols; ++c) {
-					double value = row_ptr[c];
-					row_ptr[c] = thresholdFunction(value, threshold);
-				}
-			}
-		}
-	}
-
-	void visuShrink(const cv::Mat& input, cv::Mat& output, int level, OpenMPThresholdMode mode) {
-		if (input.empty() || level < 1) {
-			throw std::invalid_argument("Invalid input parameters for VisuShrink.");
-		}
-
-		// Perform DWT
-		cv::Mat dwtOutput;
-		OpenMPHaarWavelet::dwt(input, dwtOutput, level);
-
-		const int rows = dwtOutput.rows;
-		const int cols = dwtOutput.cols;
-
-		// Calculate threshold once
-		cv::Mat highFreqBand = dwtOutput(cv::Rect(cols >> 1, rows >> 1, cols >> 1, rows >> 1));
-		const double threshold = calculateUniversalThreshold(highFreqBand);
-
-		// Select threshold function
+		// Select threshold function (outside parallel region)
 		float (*thresholdFunction)(float, float) = nullptr;
 		switch (mode) {
 		case OpenMPThresholdMode::HARD: thresholdFunction = hard_shrink; break;
@@ -225,30 +184,108 @@ namespace OpenMPWaveletThreshold {
 		case OpenMPThresholdMode::GARROTE: thresholdFunction = garrot_shrink; break;
 		}
 
-		output = dwtOutput.clone();
+		// Calculate statistics outside parallel region
+		const double sigmaNoiseSq = sigmaNoise * sigmaNoise;
+		cv::Mat coeffsSquared;
+		cv::multiply(coeffs, coeffs, coeffsSquared);
+		double totalVar = cv::mean(coeffsSquared)[0];
+		double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoiseSq, 0.0));
+		const double threshold = sigmaNoiseSq / sigmaSignal;
 
-		// Process all levels in parallel
-#pragma omp parallel for schedule(dynamic)
-		for (int i = 1; i <= level; i++) {
-			const int subRows = rows >> i;
-			const int subCols = cols >> i;
+		const int rows = coeffs.rows;
+		const int cols = coeffs.cols;
+		const int chunkSize = std::max(1, rows / (omp_get_max_threads() * 4));
 
-			// Process each subband independently
-			for (int r = 0; r < subRows; r++) {
-				for (int c = 0; c < subCols; c++) {
-					// Apply threshold to LH, HL, and HH bands
-					output.at<double>(r + subRows, c) =
-						thresholdFunction(dwtOutput.at<double>(r + subRows, c), threshold);
-					output.at<double>(r, c + subCols) =
-						thresholdFunction(dwtOutput.at<double>(r, c + subCols), threshold);
-					output.at<double>(r + subRows, c + subCols) =
-						thresholdFunction(dwtOutput.at<double>(r + subRows, c + subCols), threshold);
-				}
+		// Create temporary buffer
+		cv::Mat tempCoeffs = coeffs.clone();
+
+#pragma omp parallel for schedule(dynamic, chunkSize) collapse(2)
+		for (int r = 0; r < rows; ++r) {
+			for (int c = 0; c < cols; ++c) {
+				double value = coeffs.at<double>(r, c);
+				tempCoeffs.at<double>(r, c) = thresholdFunction(value, threshold);
 			}
 		}
 
-		// Perform IDWT
-		OpenMPHaarWavelet::idwt(output, output, level);
+		// Copy results back
+		tempCoeffs.copyTo(coeffs);
+	}
+
+	void visuShrink(const cv::Mat& input, cv::Mat& output, int level, OpenMPThresholdMode mode) {
+		if (input.empty() || level < 1) {
+			throw std::invalid_argument("Invalid input parameters for VisuShrink.");
+		}
+
+		// Perform DWT first
+		cv::Mat dwtOutput;
+		OpenMPHaarWavelet::dwt(input, dwtOutput, level);
+
+		const int rows = dwtOutput.rows;
+		const int cols = dwtOutput.cols;
+
+		// Calculate threshold once outside parallel region
+		cv::Mat highFreqBand = dwtOutput(cv::Rect(cols >> 1, rows >> 1, cols >> 1, rows >> 1));
+		const double threshold = calculateUniversalThreshold(highFreqBand);
+
+		// Select threshold function outside parallel region
+		float (*thresholdFunction)(float, float) = nullptr;
+		switch (mode) {
+		case OpenMPThresholdMode::HARD: thresholdFunction = hard_shrink; break;
+		case OpenMPThresholdMode::SOFT: thresholdFunction = soft_shrink; break;
+		case OpenMPThresholdMode::GARROTE: thresholdFunction = garrot_shrink; break;
+		}
+
+		// Create temporary buffer to avoid race conditions
+		cv::Mat tempOutput = dwtOutput.clone();
+
+		// Process all levels
+#pragma omp parallel
+		{
+			// Calculate optimal chunk size based on number of threads
+			const int num_threads = omp_get_num_threads();
+			const int chunk_size = std::max(1, (rows / (num_threads * 4)));
+
+			for (int i = 1; i <= level; i++) {
+				const int subRows = rows >> i;
+				const int subCols = cols >> i;
+
+				// Process LH band
+#pragma omp for schedule(dynamic, chunk_size) nowait
+				for (int r = 0; r < subRows; r++) {
+					for (int c = 0; c < subCols; c++) {
+						double value = dwtOutput.at<double>(r + subRows, c);
+						tempOutput.at<double>(r + subRows, c) =
+							thresholdFunction(value, threshold);
+					}
+				}
+
+				// Process HL band
+#pragma omp for schedule(dynamic, chunk_size) nowait
+				for (int r = 0; r < subRows; r++) {
+					for (int c = 0; c < subCols; c++) {
+						double value = dwtOutput.at<double>(r, c + subCols);
+						tempOutput.at<double>(r, c + subCols) =
+							thresholdFunction(value, threshold);
+					}
+				}
+
+				// Process HH band
+#pragma omp for schedule(dynamic, chunk_size) nowait
+				for (int r = 0; r < subRows; r++) {
+					for (int c = 0; c < subCols; c++) {
+						double value = dwtOutput.at<double>(r + subRows, c + subCols);
+						tempOutput.at<double>(r + subRows, c + subCols) =
+							thresholdFunction(value, threshold);
+					}
+				}
+
+				// Synchronize threads before processing next level
+#pragma omp barrier
+			}
+		}
+
+		// Perform IDWT on the thresholded coefficients
+		OpenMPHaarWavelet::idwt(tempOutput, output, level);
 	}
 
 

@@ -110,7 +110,3 @@ namespace OpenMPHaarWavelet
         }
     }
 }
-
-
-
-
