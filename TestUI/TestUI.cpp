@@ -6,7 +6,9 @@
 #include "OpenMP.h"
 #include "_CUDA_.h"
 #include "Sequential.h"
-#include <omp.h>
+
+//#include "Combined.h"
+//#include <omp.h>
 
 #define IDC_BUTTON_OPEN 101 // id for the open button
 #define IDC_COMBO_METHOD 102 // id for the method combo box
@@ -259,6 +261,119 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
 			std::vector<cv::Mat> denoisedImageChannels = std::vector<cv::Mat>(noisyImageChannels.size());
 
+			//for (int i = 0; i < noisyImageChannels.size(); i++) {
+			//	denoisedImageChannels[i] = cv::Mat(noisyImageChannels[i].size(), CV_8U);
+			//}
+
+			//if (!noisyImage.empty()) {
+
+			//	double startTime = omp_get_wtime();
+
+			//	switch (selectedMethod) {
+			//	case 0: {
+			//		switch (selectedShrinkage) {
+			//		case 0:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++) {
+			//				//OpenMPWaveletThreshold::bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+			//				openmp_bayesShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels);
+			//			}
+			//			break;
+			//		case 1:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++) {
+			//				//OpenMPWaveletThreshold::visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+			//				openmp_visushrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels);
+			//			}
+			//			break;
+			//		case 2:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++) {
+			//				//OpenMPWaveletThreshold::neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+			//				openmp_neighShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels, windowSize);
+			//			}
+			//			break;
+			//		case 3:
+			//			for (int i = 0; i < noisyImage.channels(); i++) {
+			//				//OpenMPWaveletThreshold::modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+			//				openmp_modiNeighShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels, windowSize);
+			//			}
+			//			break;
+			//		}
+			//		break;
+			//	}
+			//	case 1: {
+			//		switch (selectedShrinkage) {
+			//		case 0:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++)
+			//				//CUDAWaveletThreshold::bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+			//				cuda_bayesShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels);
+			//			break;
+			//		case 1:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++)
+			//				//CUDAWaveletThreshold::visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+			//				cuda_visushrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels);
+			//			break;
+			//		case 2:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++)
+			//				//CUDAWaveletThreshold::neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+			//				cuda_neighShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels, windowSize);
+			//			break;
+			//		case 3:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++)
+			//				//CUDAWaveletThreshold::modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+			//				cuda_modiNeighShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels, windowSize);
+			//			break;
+			//		}
+			//		break;
+			//	}
+			//	case 2: {
+			//		switch (selectedShrinkage) {
+			//		case 0:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++)
+			//				//SequentialWaveletThreshold::bayesShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+			//				sequential_bayesShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels);
+			//			break;
+			//		case 1:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++)
+			//				//SequentialWaveletThreshold::visuShrink(noisyImageChannels[i], denoisedImageChannels[i], levels);
+			//				sequential_visushrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels);
+			//			break;
+			//		case 2:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++)
+			//				//SequentialWaveletThreshold::neighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+			//				sequential_neighShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels, windowSize);
+			//			break;
+			//		case 3:
+			//			for (int i = 0; i < noisyImageChannels.size(); i++)
+			//				//SequentialWaveletThreshold::modineighShrink(noisyImageChannels[i], denoisedImageChannels[i], levels, windowSize);
+			//				sequential_modiNeighShrink(noisyImageChannels[i].data, CV_TYPE_8U(), noisyImageChannels[i].rows,
+			//					noisyImageChannels[i].cols, 1, denoisedImageChannels[i].data, levels, windowSize);
+			//			break;
+			//		}
+			//		break;
+			//	}
+			//	}
+			//	double endTime = omp_get_wtime();
+			//	executionTime = endTime - startTime;
+
+			//	cv::merge(denoisedImageChannels, denoisedImage);
+			//	cv::normalize(denoisedImage, denoisedImage, 0, 255, cv::NORM_MINMAX);
+			//	denoisedImage.convertTo(denoisedImage, CV_8UC3);
+			//	noisyImage.convertTo(noisyImage, CV_8UC3);
+
+			//	InvalidateRect(hwnd, NULL, TRUE);
+			//}
+
+
 			if (!noisyImage.empty()) {
 
 				double startTime = omp_get_wtime();
@@ -362,7 +477,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			displayImage(hwnd, denoisedImage, 1030, 120, 500, 500);
 		}
 		else {
-			cv::Mat temp = cv::Mat::ones(1, 1, CV_8U)*255;
+			cv::Mat temp = cv::Mat::ones(1, 1, CV_8U) * 255;
 			displayImage(hwnd, temp, 1030, 120, 500, 500);
 		}
 

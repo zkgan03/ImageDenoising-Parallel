@@ -86,7 +86,7 @@ void cuda_bayesShrink(const unsigned char* input_data, int input_data_type, int 
 	std::memcpy(output_data, output.data, output.total() * output.elemSize());
 }
 
-void cuda_visushrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level) {
+void cuda_visuShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level) {
 	cv::Mat input, output;
 	std::vector<cv::Mat> input_channels, output_channels;
 
@@ -185,7 +185,7 @@ void openmp_bayesShrink(const unsigned char* input_data, int input_data_type, in
 	std::memcpy(output_data, output.data, input_rows * input_cols * n_channels * sizeof(unsigned char));
 }
 
-void openmp_visushrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level) {
+void openmp_visuShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level) {
 	cv::Mat input, output;
 	std::vector<cv::Mat> input_channels, output_channels;
 
@@ -287,7 +287,7 @@ void sequential_bayesShrink(const unsigned char* input_data, int input_data_type
 	std::memcpy(output_data, output.data, input_rows * input_cols * n_channels * sizeof(unsigned char));
 }
 
-void sequential_visushrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level) {
+void sequential_visuShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level) {
 	cv::Mat input, output;
 	std::vector<cv::Mat> input_channels, output_channels;
 

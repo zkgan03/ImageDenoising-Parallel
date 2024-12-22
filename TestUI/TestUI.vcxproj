@@ -84,11 +84,11 @@
     <LibraryPath>$(SolutionDir)x64\$(Configuration)\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(SolutionDir)Sequential;$(SolutionDir)OpenMP;$(SolutionDir)CUDA;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)CombinedDLL;$(SolutionDir)Sequential;$(SolutionDir)OpenMP;$(SolutionDir)CUDA;$(IncludePath);$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)x64\$(Configuration)\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(SolutionDir)Sequential;$(SolutionDir)OpenMP;$(SolutionDir)CUDA;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)CombinedDLL;$(SolutionDir)Sequential;$(SolutionDir)OpenMP;$(SolutionDir)CUDA;$(IncludePath);$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)x64\$(Configuration)\;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -139,7 +139,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>Sequential.lib;_CUDA_.lib;OpenMP.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>CombinedDLL.lib;OpenMP.lib;_CUDA_.lib;Sequential.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -159,7 +159,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>Sequential.lib;_CUDA_.lib;OpenMP.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>CombinedDLL.lib;OpenMP.lib;_CUDA_.lib;Sequential.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
