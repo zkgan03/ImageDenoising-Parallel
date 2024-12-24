@@ -171,7 +171,14 @@ namespace SequentialWaveletThreshold {
 			break;
 		}
 
-		double totalVar = cv::mean(coeffs.mul(coeffs))[0]; // Total variance
+		float totalVar = 0;
+		for (int i = 0; i < coeffs.rows; i++) {
+			for (int j = 0; j < coeffs.cols; j++) {
+				totalVar += coeffs.at<double>(i, j) * coeffs.at<double>(i, j);
+			}
+		}
+		totalVar /= (coeffs.rows * coeffs.cols);
+
 		double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoise * sigmaNoise, 0.0)); // Signal standard deviation
 		double threshold = sigmaNoise * sigmaNoise / sigmaSignal; // BayesShrink threshold
 

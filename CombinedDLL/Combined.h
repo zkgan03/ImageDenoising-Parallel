@@ -27,7 +27,7 @@ extern "C" {
     DLL_API void cuda_dwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration);
     DLL_API void cuda_idwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration);
     DLL_API void cuda_bayesShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
-    DLL_API void cuda_visushrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
+    DLL_API void cuda_visuShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
     DLL_API void cuda_neighShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level, int windowSize);
     DLL_API void cuda_modiNeighShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level, int windowSize);
 
@@ -35,7 +35,7 @@ extern "C" {
     DLL_API void openmp_dwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration);
     DLL_API void openmp_idwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration);
     DLL_API void openmp_bayesShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
-    DLL_API void openmp_visushrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
+    DLL_API void openmp_visuShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
     DLL_API void openmp_neighShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level, int windowSize);
     DLL_API void openmp_modiNeighShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level, int windowSize);
 
@@ -43,7 +43,7 @@ extern "C" {
     DLL_API void sequential_dwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration);
     DLL_API void sequential_idwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration);
     DLL_API void sequential_bayesShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
-    DLL_API void sequential_visushrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
+    DLL_API void sequential_visuShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level);
     DLL_API void sequential_neighShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level, int windowSize);
     DLL_API void sequential_modiNeighShrink(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, int n_channels, unsigned char* output_data, int level, int windowSize);
 }
