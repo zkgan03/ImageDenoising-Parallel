@@ -18,6 +18,10 @@
 #define IDC_BUTTON_ADD_NOISE 106 // id for the add noise button
 #define IDC_BUTTON_SAVE 107 // id for the save button
 
+#define IDC_EDIT_LEVELS 200 // id for the levels input field
+#define IDC_EDIT_WINDOW_SIZE 201 // id for the window size input field
+#define IDC_EDIT_MEAN 202 // id for the mean input field
+#define IDC_EDIT_STDDEV 203 // id for the standard deviation input field
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void add_gaussian_noise(cv::Mat& image, double mean = 0.0, double stddev = 10.0);
@@ -94,13 +98,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		CreateWindow(L"STATIC", L"Levels:", WS_VISIBLE | WS_CHILD,
 			330, 50, 100, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
-			390, 50, 50, 20, hwnd, (HMENU)200, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+			390, 50, 50, 20, hwnd, (HMENU)IDC_EDIT_LEVELS, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
 		// Create input field for window size
 		CreateWindow(L"STATIC", L"Window Size:", WS_VISIBLE | WS_CHILD,
 			450, 50, 100, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 		CreateWindow(L"EDIT", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
-			540, 50, 50, 20, hwnd, (HMENU)201, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+			540, 50, 50, 20, hwnd, (HMENU)IDC_EDIT_WINDOW_SIZE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create input field for mean
+		CreateWindow(L"STATIC", L"Mean:", WS_VISIBLE | WS_CHILD,
+			330, 10, 50, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+		CreateWindow(L"EDIT", L"0", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
+			380, 10, 50, 20, hwnd, (HMENU)IDC_EDIT_MEAN, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create input field for standard deviation
+		CreateWindow(L"STATIC", L"Std Dev:", WS_VISIBLE | WS_CHILD,
+			440, 10, 60, 20, hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+		CreateWindow(L"EDIT", L"50", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER,
+			500, 10, 50, 20, hwnd, (HMENU)IDC_EDIT_STDDEV, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
 		// Create Add Noise button
 		CreateWindow(L"BUTTON", L"Add Noise", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
@@ -189,7 +205,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		// Add Noise button
 		else if (LOWORD(wParam) == IDC_BUTTON_ADD_NOISE) {
 			if (!originalImage.empty()) {
-				add_gaussian_noise(noisyImage, 32, 50);
+				// Get mean and standard deviation from input fields
+				wchar_t meanStr[10], stddevStr[10];
+				GetWindowText(GetDlgItem(hwnd, IDC_EDIT_MEAN), meanStr, 10);
+				GetWindowText(GetDlgItem(hwnd, IDC_EDIT_STDDEV), stddevStr, 10);
+
+				double mean = _wtof(meanStr);
+				double stddev = _wtof(stddevStr);
+
+				noisyImage = originalImage.clone();
+				add_gaussian_noise(noisyImage, mean, stddev);
 				InvalidateRect(hwnd, NULL, TRUE);
 			}
 			else {
@@ -239,7 +264,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			HWND hComboShrinkage = GetDlgItem(hwnd, IDC_COMBO_SHRINKAGE);
 			selectedShrinkage = static_cast<int>(SendMessage(hComboShrinkage, CB_GETCURSEL, 0, 0));
 
-			HWND hEditLevels = GetDlgItem(hwnd, 200);
+			HWND hEditLevels = GetDlgItem(hwnd, IDC_EDIT_LEVELS);
 
 			wchar_t buffer[10];
 			GetWindowText(hEditLevels, buffer, 10);
@@ -251,7 +276,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 				return 0;
 			}
 
-			HWND hEditWindowSize = GetDlgItem(hwnd, 201);
+			HWND hEditWindowSize = GetDlgItem(hwnd, IDC_EDIT_WINDOW_SIZE);
 			GetWindowText(hEditWindowSize, buffer, 10);
 			int windowSize = _wtoi(buffer); // Convert input to intege
 
