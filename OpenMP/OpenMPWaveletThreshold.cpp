@@ -184,13 +184,17 @@ namespace OpenMPWaveletThreshold {
 		case OpenMPThresholdMode::GARROTE: thresholdFunction = garrot_shrink; break;
 		}
 
-		// Calculate statistics outside parallel region
-		const double sigmaNoiseSq = sigmaNoise * sigmaNoise;
-		cv::Mat coeffsSquared;
-		cv::multiply(coeffs, coeffs, coeffsSquared);
-		double totalVar = cv::mean(coeffsSquared)[0];
-		double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoiseSq, 0.0));
-		const double threshold = sigmaNoiseSq / sigmaSignal;
+		double totalVar = 0.0;
+#pragma omp parallel for reduction(+:totalVar) 
+		for (int i = 0; i < coeffs.rows; i++) {
+			for (int j = 0; j < coeffs.cols; j++) {
+				totalVar += coeffs.at<double>(i, j) * coeffs.at<double>(i, j);
+			}
+		}
+		totalVar /= (coeffs.rows * coeffs.cols);
+
+		double sigmaSignal = std::sqrt(std::max(totalVar - sigmaNoise * sigmaNoise, 0.0)); // Signal standard deviation
+		double threshold = sigmaNoise * sigmaNoise / sigmaSignal; // BayesShrink threshold
 
 		const int rows = coeffs.rows;
 		const int cols = coeffs.cols;
@@ -199,16 +203,13 @@ namespace OpenMPWaveletThreshold {
 		// Create temporary buffer
 		cv::Mat tempCoeffs = coeffs.clone();
 
-#pragma omp parallel for schedule(dynamic, chunkSize) collapse(2)
-		for (int r = 0; r < rows; ++r) {
-			for (int c = 0; c < cols; ++c) {
+#pragma omp parallel for collapse(2)
+		for (int r = 0; r < coeffs.rows; ++r) {
+			for (int c = 0; c < coeffs.cols; ++c) {
 				double value = coeffs.at<double>(r, c);
-				tempCoeffs.at<double>(r, c) = thresholdFunction(value, threshold);
+				coeffs.at<double>(r, c) = thresholdFunction(value, threshold);
 			}
 		}
-
-		// Copy results back
-		tempCoeffs.copyTo(coeffs);
 	}
 
 	void visuShrink(const cv::Mat& input, cv::Mat& output, int level, OpenMPThresholdMode mode) {
