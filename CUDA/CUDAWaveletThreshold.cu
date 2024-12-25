@@ -664,7 +664,7 @@ namespace CUDAWaveletThreshold {
 	) {
 		// Verify the input validity
 		if (input.empty() || level < 1 || windowSize < 1) {
-			throw std::invalid_argument("Invalid input parameters for NeighShrink.");
+			throw std::invalid_argument("Invalid input parameters for ModiNeighShrink.");
 		}
 
 		assert(input.type() == CV_32F || input.type() == CV_64F);
@@ -757,7 +757,7 @@ namespace CUDAWaveletThreshold {
 	* BayesShrink thresholding function.
 	*************************************/
 
-	__global__ void sumOfSquaresKernel(const float* input, float* output, int size) {
+	__global__ void sumOfSquaresKernel(const float* __restrict__ input, float* __restrict__ output, int size) {
 		__shared__ float shared_mem[BLOCK_SIZE * BLOCK_SIZE];
 
 		int tid = threadIdx.x;

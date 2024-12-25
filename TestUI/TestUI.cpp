@@ -171,7 +171,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			if (originalImage.empty()) {
 				MessageBox(hwnd, L"Failed to open image", L"Error", MB_OK);
 				return 0;
+			}
 
+			// ensure the image dimensions are even
+			if (originalImage.rows % 2 != 0) {
+				originalImage = originalImage(cv::Rect(0, 0, originalImage.cols, originalImage.rows - 1));
+			}
+
+			if (originalImage.cols % 2 != 0) {
+				originalImage = originalImage(cv::Rect(0, 0, originalImage.cols - 1, originalImage.rows));
 			}
 
 			noisyImage = originalImage.clone();

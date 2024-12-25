@@ -16,7 +16,7 @@ namespace CUDAHaarWavelet {
 		const int imgRows,
 		const int imgCols
 	) {
-		extern __shared__ float shared_mem[]; // Shared memory for the block (to solve global access too many times)
+		__shared__ float shared_mem[BLOCK_SIZE * BLOCK_SIZE * 4]; // Shared memory for the block (to solve global access too many times)
 
 		int r = blockIdx.x * blockDim.x + threadIdx.x;
 		int c = blockIdx.y * blockDim.y + threadIdx.y;
@@ -61,7 +61,7 @@ namespace CUDAHaarWavelet {
 		const int imgRows,
 		const int imgCols
 	) {
-		extern __shared__ float shared_mem[]; // Shared memory for the block (to solve global access too many times)
+		__shared__ float shared_mem[BLOCK_SIZE * BLOCK_SIZE * 4]; // Shared memory for the block (to solve global access too many times)
 
 		int r = blockIdx.x * blockDim.x + threadIdx.x;
 		int c = blockIdx.y * blockDim.y + threadIdx.y;
@@ -134,13 +134,15 @@ namespace CUDAHaarWavelet {
 			std::cout << "Grid: " << dimGrid.x << " x " << dimGrid.y << std::endl;
 			std::cout << "Block: " << dimBlock.x << " x " << dimBlock.y << std::endl;
 
-			gpu_dwt << <dimGrid, dimBlock, sharedMemSize >> > (
+			gpu_dwt << <dimGrid, dimBlock>> > (
 				d_input_img,
 				d_output_wavelet,
 				i,
 				input.rows,
 				input.cols
 				);
+
+			std::cout << "Copy data from device to device" << std::endl;
 
 			if (i < nIteration)
 				CudaWrapper::memcpy(d_input_img, d_output_wavelet, memory_size, cudaMemcpyDeviceToDevice);
@@ -188,7 +190,7 @@ namespace CUDAHaarWavelet {
 			std::cout << "Grid: " << dimGrid.x << " x " << dimGrid.y << std::endl;
 			std::cout << "Block: " << dimBlock.x << " x " << dimBlock.y << std::endl;
 
-			gpu_idwt << <dimGrid, dimBlock, sharedMemSize >> > (
+			gpu_idwt << <dimGrid, dimBlock>> > (
 				d_input_wavelet,
 				d_output_img,
 				i,

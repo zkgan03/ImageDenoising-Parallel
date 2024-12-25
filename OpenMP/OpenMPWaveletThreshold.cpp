@@ -80,99 +80,64 @@ namespace OpenMPWaveletThreshold {
 		return threshold;
 	}
 
-
 	void applyNeighShrink(const cv::Mat& coeffs, cv::Mat& output, double threshold, int halfWindow) {
-		const int rows = coeffs.rows;
-		const int cols = coeffs.cols;
-		const double thresholdSq = threshold * threshold;
 
-		// Create a temporary buffer to avoid race conditions
-		cv::Mat tempOutput = output.clone();
+#pragma omp parallel for collapse(2)
+		for (int r = 0; r < coeffs.rows; ++r) {
+			for (int c = 0; c < coeffs.cols; ++c) {
 
-		// Use parallel processing with optimized chunk size
-		const int chunkSize = std::max(1, rows / (omp_get_max_threads() * 4));
+				double squareSum = 0.0;
 
-#pragma omp parallel
-		{
-			// Thread-local storage for window calculations
-			std::vector<double> windowValues((2 * halfWindow + 1) * (2 * halfWindow + 1));
+				// Loop through the window for each pixel
+				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
+					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
 
-#pragma omp for schedule(dynamic, chunkSize) nowait
-			for (int r = 0; r < rows; ++r) {
-				for (int c = 0; c < cols; ++c) {
-					double squareSum = 0.0;
-					int validCount = 0;
+						// Check if the window is within the image boundaries
+						if (r + wr >= 0 &&
+							r + wr < coeffs.rows &&
+							c + wc >= 0 &&
+							c + wc < coeffs.cols) {
 
-					// Calculate window sum using cache-friendly access pattern
-					for (int wr = std::max(0, r - halfWindow);
-						wr <= std::min(rows - 1, r + halfWindow); ++wr) {
-						for (int wc = std::max(0, c - halfWindow);
-							wc <= std::min(cols - 1, c + halfWindow); ++wc) {
-							double value = coeffs.at<double>(wr, wc);
+							double value = coeffs.at<double>(r + wr, c + wc);
 							squareSum += value * value;
-							validCount++;
 						}
 					}
-
-					// Apply threshold to temporary buffer
-					tempOutput.at<double>(r, c) *= std::max(1.0 - (thresholdSq / squareSum), 0.0);
 				}
+
+				double& value = output.at<double>(r, c);
+				value *= std::max(1.0 - ((threshold * threshold) / squareSum), 0.0);
 			}
 		}
-
-		// Copy back results
-		tempOutput.copyTo(output);
 	}
 
-
 	void applyModiNeighShrink(const cv::Mat& coeffs, cv::Mat& output, double threshold, int halfWindow) {
-		const int rows = coeffs.rows;
-		const int cols = coeffs.cols;
-		const double thresholdSq = threshold * threshold;
-		const double factor = 3.0 / 4.0;
 
-		// Create padded matrices to eliminate boundary checks
-		cv::Mat padded, tempOutput;
-		cv::copyMakeBorder(coeffs, padded, halfWindow, halfWindow,
-			halfWindow, halfWindow, cv::BORDER_CONSTANT, 0);
-		tempOutput = output.clone();
+#pragma omp parallel for collapse(2)
+		for (int r = 0; r < coeffs.rows; ++r) {
+			for (int c = 0; c < coeffs.cols; ++c) {
 
-		const int chunkSize = std::max(1, rows / (omp_get_max_threads() * 4));
+				double squareSum = 0.0;
 
-#pragma omp parallel
-		{
-			// Thread-local storage
-			std::vector<double> windowCache((2 * halfWindow + 1) * (2 * halfWindow + 1));
+				// Loop through the window for each pixel
+				for (int wr = -halfWindow; wr <= halfWindow; wr++) {
+					for (int wc = -halfWindow; wc <= halfWindow; wc++) {
 
-#pragma omp for schedule(dynamic, chunkSize) nowait
-			for (int r = 0; r < rows; ++r) {
-				for (int c = 0; c < cols; ++c) {
-					double squareSum = 0.0;
+						// Check if the window is within the image boundaries
+						if (r + wr >= 0 &&
+							r + wr < coeffs.rows &&
+							c + wc >= 0 &&
+							c + wc < coeffs.cols) {
 
-					// Use pre-calculated indices for faster access
-					const int startR = r;
-					const int startC = c;
-					const int endR = r + 2 * halfWindow + 1;
-					const int endC = c + 2 * halfWindow + 1;
-
-					// Efficient window processing using padded matrix
-					for (int wr = startR; wr < endR; ++wr) {
-						const double* windowRow = padded.ptr<double>(wr);
-						for (int wc = startC; wc < endC; ++wc) {
-							double value = windowRow[wc];
+							double value = coeffs.at<double>(r + wr, c + wc);
 							squareSum += value * value;
 						}
 					}
-
-					// Calculate and apply shrinkage to temporary buffer
-					tempOutput.at<double>(r, c) *=
-						std::max(1.0 - (factor * thresholdSq / squareSum), 0.0);
 				}
+
+				double& value = output.at<double>(r, c);
+				value *= std::max(1.0 - ((3.0 / 4.0) * (threshold * threshold) / squareSum), 0.0);
 			}
 		}
-
-		// Copy results back
-		tempOutput.copyTo(output);
 	}
 
 	void applyBayesShrink(cv::Mat& coeffs, double sigmaNoise, OpenMPThresholdMode mode) {
@@ -185,7 +150,7 @@ namespace OpenMPWaveletThreshold {
 		}
 
 		double totalVar = 0.0;
-#pragma omp parallel for reduction(+:totalVar) 
+#pragma omp parallel for collapse(2) reduction(+:totalVar) 
 		for (int i = 0; i < coeffs.rows; i++) {
 			for (int j = 0; j < coeffs.cols; j++) {
 				totalVar += coeffs.at<double>(i, j) * coeffs.at<double>(i, j);
@@ -198,10 +163,7 @@ namespace OpenMPWaveletThreshold {
 
 		const int rows = coeffs.rows;
 		const int cols = coeffs.cols;
-		const int chunkSize = std::max(1, rows / (omp_get_max_threads() * 4));
 
-		// Create temporary buffer
-		cv::Mat tempCoeffs = coeffs.clone();
 
 #pragma omp parallel for collapse(2)
 		for (int r = 0; r < coeffs.rows; ++r) {
@@ -426,7 +388,7 @@ namespace OpenMPWaveletThreshold {
 	) {
 		// Verify the input validity
 		if (input.empty() || level < 1 || windowSize < 1) {
-			throw std::invalid_argument("Invalid input parameters for NeighShrink.");
+			throw std::invalid_argument("Invalid input parameters for ModiNeighShrink.");
 		}
 
 		/*
@@ -459,14 +421,14 @@ namespace OpenMPWaveletThreshold {
 		std::cout << "Threshold: " << threshold << std::endl;
 
 		/*
-			3. Apply NeighShrink thresholding
+			3. Apply ModiNeighShrink thresholding
 		*/
-		// Apply NeighShrink thresholding
+		// Apply ModiNeighShrink thresholding
 		// Loop through each level of the wavelet decomposition
 		output = dwtOutput.clone();
 		for (int i = 1; i <= level; ++i) {
 
-			std::cout << "Performing NeighShrink level: " << i << std::endl;
+			std::cout << "Performing ModiNeighShrink level: " << i << std::endl;
 
 			//LH
 			cv::Mat lhCoeffs = dwtOutput(
@@ -505,85 +467,35 @@ namespace OpenMPWaveletThreshold {
 					rows >> i
 				)
 			);
-			/*
-				3. Apply ModiNeighShrink thresholding
-			*/
-			// Apply ModiNeighShrink thresholding
-			// Loop through each level of the wavelet decomposition
-			output = dwtOutput.clone();
-			for (int i = 1; i <= level; ++i) {
 
-				std::cout << "Performing ModiNeighShrink level: " << i << std::endl;
+			//HH
+			cv::Mat hhCoeffs = dwtOutput(
+				cv::Rect(
+					cols >> i,
+					rows >> i,
+					cols >> i,
+					rows >> i
+				)
+			);
 
-				//LH
-				cv::Mat lhCoeffs = dwtOutput(
-					cv::Rect(
-						0,
-						rows >> i,
-						cols >> i,
-						rows >> i
-					)
-				);
+			cv::Mat hhOutput = output(
+				cv::Rect(
+					cols >> i,
+					rows >> i,
+					cols >> i,
+					rows >> i
+				)
+			);
 
-				cv::Mat lhOutput = output(
-					cv::Rect(
-						0,
-						rows >> i,
-						cols >> i,
-						rows >> i
-					)
-				);
-
-				//HL
-				cv::Mat hlCoeffs = dwtOutput(
-					cv::Rect(
-						cols >> i,
-						0,
-						cols >> i,
-						rows >> i
-					)
-				);
-
-				cv::Mat hlOutput = output(
-					cv::Rect(
-						cols >> i,
-						0,
-						cols >> i,
-						rows >> i
-					)
-				);
-
-				//HH
-				cv::Mat hhCoeffs = dwtOutput(
-					cv::Rect(
-						cols >> i,
-						rows >> i,
-						cols >> i,
-						rows >> i
-					)
-				);
-
-				cv::Mat hhOutput = output(
-					cv::Rect(
-						cols >> i,
-						rows >> i,
-						cols >> i,
-						rows >> i
-					)
-				);
-
-				applyModiNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
-				applyModiNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
-				applyModiNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
-			}
-
-			/*
-				4. Apply inverse wavelet transform to the output image
-			*/
-			OpenMPHaarWavelet::idwt(output, output, level); // idwt
+			applyModiNeighShrink(lhCoeffs, lhOutput, threshold, halfWindow);
+			applyModiNeighShrink(hlCoeffs, hlOutput, threshold, halfWindow);
+			applyModiNeighShrink(hhCoeffs, hhOutput, threshold, halfWindow);
 		}
 
-
+		/*
+			4. Apply inverse wavelet transform to the output image
+		*/
+		OpenMPHaarWavelet::idwt(output, output, level); // idwt
 	}
 
 	/**
@@ -670,9 +582,6 @@ namespace OpenMPWaveletThreshold {
 		*/
 		OpenMPHaarWavelet::idwt(output, output, level); // idwt
 	}
-
-
-
 }
 
 
