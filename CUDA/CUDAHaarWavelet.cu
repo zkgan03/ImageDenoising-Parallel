@@ -121,7 +121,6 @@ namespace CUDAHaarWavelet {
 
 		CudaWrapper::memcpy(d_input_img, float_input_img, memory_size, cudaMemcpyHostToDevice);
 
-		int sharedMemSize = 4 * BLOCK_SIZE * BLOCK_SIZE * sizeof(float);
 		dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 		dim3 dimGrid;
 
@@ -177,7 +176,6 @@ namespace CUDAHaarWavelet {
 		CudaWrapper::memcpy(d_input_wavelet, float_input_wavelet, memory_size, cudaMemcpyHostToDevice);
 		CudaWrapper::memcpy(d_output_img, float_output_img, memory_size, cudaMemcpyHostToDevice);
 
-		int sharedMemSize = 4 * BLOCK_SIZE * BLOCK_SIZE * sizeof(float);
 		dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 		dim3 dimGrid;
 

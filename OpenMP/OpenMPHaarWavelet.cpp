@@ -28,7 +28,7 @@ namespace OpenMPHaarWavelet
 			int currentCols = cols >> i;
 
 			// Use schedule(static) for better cache utilization
-#pragma omp parallel for collapse(2) schedule(static)
+#pragma omp parallel for collapse(2)
 			for (int r = 0; r < currentRows; r++) {
 				for (int c = 0; c < currentCols; c++) {
 					// Cache frequently accessed values
@@ -78,7 +78,7 @@ namespace OpenMPHaarWavelet
 			int currentCols = cols >> i;
 
 			// Use schedule(static) for better cache utilization
-#pragma omp parallel for collapse(2) schedule(static)
+#pragma omp parallel for collapse(2) 
 			for (int r = 0; r < currentRows; r++) {
 				for (int c = 0; c < currentCols; c++) {
 					// Cache frequently accessed values

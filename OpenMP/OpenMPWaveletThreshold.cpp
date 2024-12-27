@@ -31,10 +31,11 @@ namespace OpenMPWaveletThreshold {
 
 	double calculateSigma(cv::Mat& coeffs) {
 		// Flatten the high-frequency coefficients
-		std::vector<double> coefficients;
+		std::vector<double> coefficients = std::vector<double>(coeffs.rows * coeffs.cols);
+#pragma omp parallel for collapse(2)
 		for (int i = 0; i < coeffs.rows; ++i) {
 			for (int j = 0; j < coeffs.cols; ++j) {
-				coefficients.push_back(std::abs(coeffs.at<double>(i, j)));
+				coefficients[i * coeffs.cols + j] = std::abs(coeffs.at<double>(i, j));
 			}
 		}
 
