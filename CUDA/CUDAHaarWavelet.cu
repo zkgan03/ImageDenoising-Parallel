@@ -17,9 +17,9 @@ namespace CUDAHaarWavelet {
 		const int imgCols
 	) {
 		__shared__ float shared_mem[BLOCK_SIZE * BLOCK_SIZE * 4]; // Shared memory for the block (to solve global access too many times)
-
-		int r = blockIdx.x * blockDim.x + threadIdx.x;
-		int c = blockIdx.y * blockDim.y + threadIdx.y;
+	
+		int r = blockIdx.y * blockDim.y + threadIdx.y;
+		int c = blockIdx.x * blockDim.x + threadIdx.x;
 
 		// Check if the thread is within the image
 		if (r >= (imgRows >> currLevel) || c >= (imgCols >> currLevel)) {
@@ -63,8 +63,8 @@ namespace CUDAHaarWavelet {
 	) {
 		__shared__ float shared_mem[BLOCK_SIZE * BLOCK_SIZE * 4]; // Shared memory for the block (to solve global access too many times)
 
-		int r = blockIdx.x * blockDim.x + threadIdx.x;
-		int c = blockIdx.y * blockDim.y + threadIdx.y;
+		int r = blockIdx.y * blockDim.y + threadIdx.y;
+		int c = blockIdx.x * blockDim.x + threadIdx.x;
 
 		// Check if the thread is within the image
 		if (r >= (imgRows >> currLevel) || c >= (imgCols >> currLevel)) {

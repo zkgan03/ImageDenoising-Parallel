@@ -2,7 +2,6 @@
 #include <opencv2/opencv.hpp>
 #include <omp.h>
 
-
 #include "OpenMPWaveletThreshold.h"
 #include "OpenMPHaarWavelet.h"
 

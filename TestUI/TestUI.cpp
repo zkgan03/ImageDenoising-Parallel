@@ -16,7 +16,8 @@
 #define IDC_COMBO_SHRINKAGE 104 // id for the shrinkage combo box
 #define IDC_COMBO_IMAGE_TYPE 105 // id for the image type combo box
 #define IDC_BUTTON_ADD_NOISE 106 // id for the add noise button
-#define IDC_BUTTON_SAVE 107 // id for the save button
+#define IDC_BUTTON_SAVE_DENOISED 107 // id for the save button
+#define IDC_BUTTON_SAVE_NOISY 108 // id for the save button
 
 #define IDC_EDIT_LEVELS 200 // id for the levels input field
 #define IDC_EDIT_WINDOW_SIZE 201 // id for the window size input field
@@ -126,9 +127,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		CreateWindow(L"BUTTON", L"Denoise", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
 			600, 50, 100, 30, hwnd, (HMENU)IDC_BUTTON_DENOISE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
-		// Create Save Image button (initially hidden)
-		CreateWindow(L"BUTTON", L"Save Image", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-			710, 50, 100, 30, hwnd, (HMENU)IDC_BUTTON_SAVE, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+		// Create Save NOISY image button (initially hidden)
+		CreateWindow(L"BUTTON", L"Save Noisy Image", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			710, 50, 180, 30, hwnd, (HMENU)IDC_BUTTON_SAVE_NOISY, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+
+		// Create Save Denoised Image button (initially hidden)
+		CreateWindow(L"BUTTON", L"Save Denoised Image", WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			900, 50, 180, 30, hwnd, (HMENU)IDC_BUTTON_SAVE_DENOISED, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
 
 		// Add items to the combo box for methods
@@ -222,8 +227,35 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			}
 		}
 
-		// Save Image button
-		else if (LOWORD(wParam) == IDC_BUTTON_SAVE) {
+		// Save noisy image 
+		else if (LOWORD(wParam) == IDC_BUTTON_SAVE_NOISY) {
+			if (noisyImage.empty()) {
+				MessageBox(hwnd, L"No noisy image to save", L"Error", MB_OK);
+				return 0;
+			}
+
+			OPENFILENAME ofn;
+			wchar_t szFile[260] = L"default_filename_noisy.jpg"; // Set default file name and extension
+
+			ZeroMemory(&ofn, sizeof(ofn));
+			ofn.lStructSize = sizeof(ofn);
+			ofn.hwndOwner = hwnd;
+			ofn.lpstrFile = szFile;
+			ofn.nMaxFile = sizeof(szFile);
+			ofn.lpstrFilter = L"JPEG\0*.JPG\0PNG\0*.PNG\0All\0*.*\0";
+			ofn.nFilterIndex = 1;
+			ofn.lpstrFileTitle = NULL;
+			ofn.nMaxFileTitle = 0;
+			ofn.lpstrInitialDir = NULL;
+			ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+			if (GetSaveFileName(&ofn) == TRUE) {
+				cv::imwrite(cv::String(ofn.lpstrFile, ofn.lpstrFile + wcslen(ofn.lpstrFile)), noisyImage);
+			}
+		}
+
+		// Save denoised Image button
+		else if (LOWORD(wParam) == IDC_BUTTON_SAVE_DENOISED) {
 
 			if (denoisedImage.empty()) {
 				MessageBox(hwnd, L"No denoised image to save", L"Error", MB_OK);
@@ -231,7 +263,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 			}
 
 			OPENFILENAME ofn;
-			wchar_t szFile[260] = L"default_filename.jpg"; // Set default file name and extension
+			wchar_t szFile[260] = L"default_filename_denoised.jpg"; // Set default file name and extension
 
 			ZeroMemory(&ofn, sizeof(ofn));
 			ofn.lStructSize = sizeof(ofn);
