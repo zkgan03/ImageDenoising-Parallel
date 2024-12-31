@@ -29,6 +29,6 @@
 
 ### Performance Evaluation Notebook
 1. Build and Compile the `CombinedDLL` project as dll files
-2. Open in `Jupyter Notebook` / `JupyterLab`
+2. Open `PerformanceEvaluation.ipynb` in `Jupyter Notebook` / `JupyterLab`
 3. Update all the neccessary path inside the notebook
 4. Run all and wait for result!
