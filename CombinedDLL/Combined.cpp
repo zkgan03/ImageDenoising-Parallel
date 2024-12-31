@@ -1,4 +1,5 @@
 #include "pch.h" 
+#include <omp.h>
 
 #include "Combined.h"
 
@@ -35,6 +36,14 @@ int CV_TYPE_16S() { return CV_16S; }
 int CV_TYPE_32S() { return CV_32S; }
 int CV_TYPE_32F() { return CV_32F; }
 int CV_TYPE_64F() { return CV_64F; }
+
+void openmp_set_num_threads(int num_threads) {
+	omp_set_num_threads(num_threads);
+}
+
+int openmp_get_num_threads() {
+	return omp_get_max_threads();
+}
 
 // CUDA functions
 void cuda_dwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration) {

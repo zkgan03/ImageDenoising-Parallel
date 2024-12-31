@@ -23,6 +23,9 @@ extern "C" {
 	DLL_API int CV_TYPE_32F();
 	DLL_API int CV_TYPE_64F();
 
+	DLL_API void openmp_set_num_threads(int num_threads);
+	DLL_API int openmp_get_num_threads();
+
     // CUDA functions
     DLL_API void cuda_dwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration);
     DLL_API void cuda_idwt(const unsigned char* input_data, int input_data_type, int input_rows, int input_cols, unsigned char* output_data, int nIteration);
