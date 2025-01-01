@@ -1,6 +1,5 @@
 # Image Denoising with Parallel Computing Technique
-![WhatsApp Image 2024-12-18 at 22 01 08_1da8a7d7](https://github.com/user-attachments/assets/a3ddd6ed-7923-455f-a52f-203dfa7567f6)
-
+![image](https://github.com/user-attachments/assets/c773b70f-9ba7-4ca1-961e-e6b9157a7336)
 
 ## Parallel Platform
   - OpenMP
@@ -32,3 +31,21 @@
 2. Open `PerformanceEvaluation.ipynb` in `Jupyter Notebook` / `JupyterLab`
 3. Update all the neccessary path inside the notebook
 4. Run all and wait for result!
+
+
+## Results for different algorithms
+
+  - DWT Iteration = 3
+  - Gausian Noise
+    - mean = 0
+    - standard deviation = 100
+
+| **Algorithms**       | **Sample Image 1**                                                                                 |
+|----------------------|----------------------------------------------------------------------------------------------------|
+| **Original Image**   | ![fruits-512x512](https://github.com/user-attachments/assets/26c8a140-c021-49dc-8d63-21c11d9b5b38) |
+| **Noisy Image**      | ![noisy_img](https://github.com/user-attachments/assets/d65c36a5-c851-4686-aad8-0ab4ce4cf190)      |
+| **VisuShrink**       | ![visu](https://github.com/user-attachments/assets/2caeab35-2f92-43d8-8ac4-4032b17910cf)           | 
+| **BayesShrink**      | ![bayes](https://github.com/user-attachments/assets/140db94f-723d-44e8-af8a-0e10ce10d057)          |
+| **NeighShrink** <br> *window size = 3x3*     | ![neigh](https://github.com/user-attachments/assets/557a7ec8-0018-4faa-930b-68d74ed51c00)          |
+| **ModiNeighShrink** <br> *window size = 3x3* | ![modineigh](https://github.com/user-attachments/assets/25a740ef-5787-4d0d-be13-7c94d0ee8643)      |
+
