@@ -288,7 +288,7 @@ namespace CUDAWaveletThreshold {
 			lhOutput.copyTo(output(lhRoi));
 			hlOutput.copyTo(output(hlRoi));
 			hhOutput.copyTo(output(hhRoi));
-			
+
 		}
 		std::cout << "VisuShrink Done" << std::endl;
 
@@ -329,6 +329,9 @@ namespace CUDAWaveletThreshold {
 				}
 			}
 		}
+
+		if (squareSum == 0.0) return; // Avoid division by zero
+
 
 		float value = coeffs[r * cols + c];
 		float shrinkage = 1.0f - ((threshold * threshold) / squareSum);
@@ -557,6 +560,8 @@ namespace CUDAWaveletThreshold {
 				}
 			}
 		}
+
+		if (squareSum == 0.0) return; // Avoid division by zero
 
 		float value = coeffs[r * cols + c];
 		float shrinkage = 1.0f - ((3.0f / 4.0f) * (threshold * threshold) / squareSum);

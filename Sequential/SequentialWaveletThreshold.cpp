@@ -110,6 +110,8 @@ namespace SequentialWaveletThreshold {
 					}
 				}
 
+				if (squareSum == 0.0) continue; // Avoid division by zero
+
 				double& value = output.at<double>(r, c);
 				value *= std::max(1.0 - ((threshold * threshold) / squareSum), 0.0);
 			}
@@ -143,6 +145,8 @@ namespace SequentialWaveletThreshold {
 						}
 					}
 				}
+
+				if (squareSum == 0.0) continue; // Avoid division by zero
 
 				double& value = output.at<double>(r, c);
 				value *= std::max(1.0 - ((3.0 / 4.0) * (threshold * threshold) / squareSum), 0.0);
