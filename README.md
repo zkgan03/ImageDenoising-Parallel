@@ -49,3 +49,29 @@
 | **NeighShrink** <br> *window size = 3x3*     | ![neigh](https://github.com/user-attachments/assets/557a7ec8-0018-4faa-930b-68d74ed51c00)          |
 | **ModiNeighShrink** <br> *window size = 3x3* | ![modineigh](https://github.com/user-attachments/assets/25a740ef-5787-4d0d-be13-7c94d0ee8643)      |
 
+
+## References
+1. **D.L., Donoho, 1995**  
+   *De-noising by Soft-Thresholding*  
+   Published in *IEEE Transactions on Information Theory*.  
+   [10.1109/18.382009](https://doi.org/10.1109/18.382009)
+
+2. **D.L. Donoho, I. M Johnstone, 1994**  
+   *Biometrika*  
+   [10.1093/biomet/81.3.425](https://doi.org/10.1093/biomet/81.3.425)  
+   
+3. **S.G. Chang; Bin Yu; M. Vetterli, 2000**    
+   *Adaptive wavelet thresholding for image denoising and compression*  
+   Published in *IEEE Transactions on Image Processing*.  
+   [10.1109/83.862633](https://doi.org/10.1109/83.862633)
+
+4. **D.W. Zhou, W.G. Cheng, 2008**  
+   *Image denoising with an optimal threshold and neighbouring window*  
+   Published in *Pattern Recognition Letters*.  
+   [10.1016/j.patrec.2008.04.014](https://doi.org/10.1016/j.patrec.2008.04.014)  
+
+5. **S. K. Mohideen, P. Arumuga, M. Sathik, 2008**  
+   *Image Denoising using Discrete Wavelet transform*  
+   [link](https://www.researchgate.net/publication/251938085_Image_Denoising_using_Discrete_Wavelet_transform)
+
+
