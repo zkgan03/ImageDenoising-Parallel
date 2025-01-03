@@ -1,4 +1,4 @@
-# Image Denoising with Parallel Computing Technique
+# DWT Image Denoising with Shrinkage Algorithms and Parallel Computing Technique
 ![image](https://github.com/user-attachments/assets/c773b70f-9ba7-4ca1-961e-e6b9157a7336)
 
 ## Parallel Platform
